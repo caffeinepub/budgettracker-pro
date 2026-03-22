@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/assets/fonts/PlusJakartaSans.woff2") format("woff2");
+  font-weight: 300 700;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0.75rem;
+
+    /* Emerald fintech palette */
+    --background: 0.965 0.003 264;
+    --foreground: 0.13 0 0;
+    --card: 1 0 0;
+    --card-foreground: 0.13 0 0;
+    --popover: 1 0 0;
+    --popover-foreground: 0.13 0 0;
+
+    /* Primary = emerald green */
+    --primary: 0.696 0.17 162;
+    --primary-foreground: 1 0 0;
+
+    --secondary: 0.92 0.004 264;
+    --secondary-foreground: 0.13 0 0;
+    --muted: 0.92 0.004 264;
+    --muted-foreground: 0.45 0.01 264;
+    --accent: 0.92 0.004 264;
+    --accent-foreground: 0.13 0 0;
+
+    --destructive: 0.577 0.245 27;
+    --destructive-foreground: 1 0 0;
+    --border: 0.92 0.004 264;
+    --input: 0.92 0.004 264;
+    --ring: 0.696 0.17 162;
+
+    /* VIP gold */
+    --vip: 0.75 0.183 85;
+    --vip-foreground: 0.13 0 0;
+
+    /* Emerald variants */
+    --emerald: 0.696 0.17 162;
+    --emerald-dark: 0.627 0.165 160;
+    --emerald-light: 0.93 0.06 162;
+
+    /* Charcoal */
+    --charcoal: 0.22 0.01 264;
+
+    /* Body text */
+    --body: 0.37 0.015 264;
+
+    --chart-1: 0.696 0.17 162;
+    --chart-2: 0.488 0.243 264;
+    --chart-3: 0.75 0.183 85;
+    --chart-4: 0.577 0.245 27;
+    --chart-5: 0.627 0.17 300;
+
+    --sidebar: 1 0 0;
+    --sidebar-foreground: 0.13 0 0;
+    --sidebar-primary: 0.696 0.17 162;
+    --sidebar-primary-foreground: 1 0 0;
+    --sidebar-accent: 0.92 0.004 264;
+    --sidebar-accent-foreground: 0.13 0 0;
+    --sidebar-border: 0.92 0.004 264;
+    --sidebar-ring: 0.696 0.17 162;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Progress ring animation */
+@keyframes progress-ring {
+  from {
+    stroke-dashoffset: 283;
+  }
+}
+
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.8s ease-in-out;
+}
+
+/* Card gradient for VIP cards */
+.card-gradient-charcoal {
+  background: linear-gradient(135deg, #2c2f33 0%, #454950 100%);
+}
+
+.card-gradient-emerald {
+  background: linear-gradient(135deg, #059669 0%, #10b981 60%, #34d399 100%);
+}
+
+.card-gradient-navy {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a9e 100%);
+}
+
+.vip-banner-gradient {
+  background: linear-gradient(135deg, #111827 0%, #064e3b 50%, #10b981 100%);
+}
+
+.upgrade-hero-gradient {
+  background: linear-gradient(160deg, #111827 0%, #064e3b 55%, #10b981 100%);
+}
