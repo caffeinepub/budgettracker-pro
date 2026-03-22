@@ -7,7 +7,7 @@ interface SplashScreenProps {
 export default function SplashScreen({ onComplete }: SplashScreenProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
-      const isNewUser = !localStorage.getItem("wiz_returning");
+      const isNewUser = !localStorage.getItem("wiz_session");
       onComplete(isNewUser);
     }, 2000);
     return () => clearTimeout(timer);

@@ -26,6 +26,11 @@ export default function App() {
     setCurrentScreen("dashboard");
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("wiz_session");
+    setAppState("onboarding");
+  };
+
   if (appState === "splash") {
     return (
       <>
@@ -56,6 +61,7 @@ export default function App() {
             isVIP={isVIP}
             onAddExpense={() => setCurrentScreen("add")}
             onUpgrade={() => setCurrentScreen("vip")}
+            onLogout={handleLogout}
           />
         );
       case "add":

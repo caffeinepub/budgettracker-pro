@@ -1,4 +1,4 @@
-import { Crown, Plus } from "lucide-react";
+import { Crown, LogOut, Plus } from "lucide-react";
 import type { Expense } from "../types/expense";
 import { CATEGORY_ICONS } from "../types/expense";
 
@@ -8,6 +8,7 @@ interface DashboardProps {
   isVIP: boolean;
   onAddExpense: () => void;
   onUpgrade: () => void;
+  onLogout: () => void;
 }
 
 function ProgressRing({ spent, budget }: { spent: number; budget: number }) {
@@ -63,6 +64,7 @@ export default function Dashboard({
   isVIP,
   onAddExpense,
   onUpgrade,
+  onLogout,
 }: DashboardProps) {
   const weeklyExpenses = expenses.slice(0, 8);
   const spent = weeklyExpenses.reduce((s, e) => s + e.amount, 0);
@@ -84,20 +86,32 @@ export default function Dashboard({
             {isVIP ? "VIP Member ✨" : "Free Plan"}
           </p>
         </div>
-        {isVIP ? (
-          <span className="flex items-center gap-1 bg-vip/10 text-vip border border-vip/20 text-xs font-bold px-3 py-1.5 rounded-full">
-            <Crown size={12} /> VIP
-          </span>
-        ) : (
+        <div className="flex items-center gap-2">
+          {isVIP ? (
+            <span className="flex items-center gap-1 bg-vip/10 text-vip border border-vip/20 text-xs font-bold px-3 py-1.5 rounded-full">
+              <Crown size={12} /> VIP
+            </span>
+          ) : (
+            <button
+              type="button"
+              data-ocid="dashboard.upgrade.button"
+              onClick={onUpgrade}
+              className="text-xs font-semibold text-emerald border border-emerald/30 px-3 py-1.5 rounded-full hover:bg-emerald/5 transition-colors"
+            >
+              Go VIP ✨
+            </button>
+          )}
           <button
             type="button"
-            data-ocid="dashboard.upgrade.button"
-            onClick={onUpgrade}
-            className="text-xs font-semibold text-emerald border border-emerald/30 px-3 py-1.5 rounded-full hover:bg-emerald/5 transition-colors"
+            data-ocid="dashboard.logout.button"
+            onClick={onLogout}
+            title="Log Out"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-white border border-white/10 hover:border-white/20 px-2.5 py-1.5 rounded-full transition-colors"
           >
-            Go VIP ✨
+            <LogOut size={13} />
+            <span className="hidden sm:inline">Log Out</span>
           </button>
-        )}
+        </div>
       </header>
 
       {/* Progress Ring Card */}
@@ -115,7 +129,9 @@ export default function Dashboard({
               Remaining
             </p>
             <p
-              className={`text-lg font-bold ${remaining < 0 ? "text-destructive" : "text-emerald"}`}
+              className={`text-lg font-bold ${
+                remaining < 0 ? "text-destructive" : "text-emerald"
+              }`}
             >
               ${Math.abs(remaining).toFixed(0)}
               {remaining < 0 ? " over" : ""}

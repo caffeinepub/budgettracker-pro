@@ -1,34 +1,32 @@
-# BudgetTracker Pro (WIZ)
+# Wealth Insight Zone (WIZ) — Auth Flow
 
 ## Current State
-- App has Dashboard, AddExpense, Analytics, LinkedCards, VIPUpgrade screens
-- No splash screen or onboarding flow
-- AddExpense has no duration/timeframe selector
-- No Set Budget screen exists yet (budget is hardcoded)
-- isVIP state toggles premium features
+- OnboardingScreen has a single 'Get Started' button with no email/password fields.
+- SplashScreen routes returning users (localStorage `wiz_returning`) straight to Dashboard, bypassing onboarding.
+- No logout mechanism exists. Once `wiz_returning` is set, there is no way to return to the onboarding/login screen.
 
 ## Requested Changes (Diff)
 
 ### Add
-- SplashScreen component: matte black background, WIZ logo (/assets/uploads/IMG_20260323_010002-1.png) centered with soft red glow, "Wealth Insight Zone" subtitle in white below logo, displays 2 seconds then routes to Onboarding (new user) or Dashboard (returning user)
-- OnboardingScreen: simple login/welcome screen for new users with a "Continue" button that marks user as returning
-- Duration/Timeframe Selector component (reusable): quick options "1 Week", "2 Weeks", "1 Month" (free), "3 Months", "6 Months", "1 Year", "Custom" (VIP only). Free users see lock icon on VIP options with upgrade prompt modal
-- Custom timeframe uses start date + end date calendar picker
-- Pro-rated budget calculations: given total budget + duration, compute daily/weekly/monthly spending limits and display them
-- VIP upgrade prompt modal/popup when free user taps a locked duration option
+- Sign Up form: email field, password field, confirm password field, 'Create Account' button.
+- Log In form: email field, password field, 'Log In' button.
+- Tab switcher on OnboardingScreen to toggle between Sign Up and Log In views.
+- Mock local auth: store user credentials in localStorage (`wiz_users`) on sign up; validate on log in.
+- Logged-in user state stored in localStorage (`wiz_session`), used instead of `wiz_returning`.
+- Log Out button in the Dashboard header (visible to all users).
+- Logging out clears `wiz_session` and resets app state back to onboarding.
 
 ### Modify
-- App.tsx: add splash screen state (showing/shown), onboarding state (isNewUser), route through splash -> onboarding (if new) -> dashboard
-- AddExpense screen: add Duration/Timeframe Selector section, pass isVIP prop, show pro-rated limits when duration + amount are both set
-- Dashboard: pass isVIP to AddExpense
+- OnboardingScreen: replace 'Get Started' button with Sign Up / Log In tabbed forms.
+- SplashScreen: check `wiz_session` instead of `wiz_returning` to decide routing.
+- Dashboard: add Log Out button in the header area.
+- App.tsx: pass logout handler down to Dashboard; handle session-based routing.
 
 ### Remove
-- Nothing removed
+- `wiz_returning` localStorage key replaced by `wiz_session`.
 
 ## Implementation Plan
-1. Create SplashScreen.tsx with WIZ logo, red glow CSS, "Wealth Insight Zone" text, 2s timer
-2. Create OnboardingScreen.tsx for new user welcome/login placeholder
-3. Create DurationSelector.tsx reusable component with free/VIP gating and custom date picker
-4. Add VIPUpgradeModal.tsx (or inline dialog) triggered when free user taps locked option
-5. Update AddExpense.tsx to include DurationSelector, accept isVIP prop, show pro-rated budget stats
-6. Update App.tsx to manage splash -> onboarding -> main app flow, pass isVIP to AddExpense
+1. Update `OnboardingScreen.tsx`: add Sign Up / Log In tabs; email + password inputs; mock auth logic using localStorage.
+2. Update `SplashScreen.tsx`: check `wiz_session` for returning user detection.
+3. Update `Dashboard.tsx`: add Log Out button in header; accept `onLogout` prop.
+4. Update `App.tsx`: pass `onLogout` to Dashboard; logout handler clears session and resets to onboarding.
