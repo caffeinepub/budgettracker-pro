@@ -1,24 +1,32 @@
-# Wealth Insight Zone (WIZ)
+# WIZ by Aura — Multi-Currency Support
 
 ## Current State
-VIPUpgrade screen shows a paywall with a 'Subscribe Now' button that triggers a mock upgrade. No promo/invite code system exists. VIP state is stored in React state only (not persisted to localStorage per user account).
+The app has a hardcoded `$` (USD) symbol on Budget Setup, Dashboard progress ring, expense list, Analytics, and VIP screens. The Add Expense screen has a per-expense currency selector but it does not affect global display. There is no global currency setting.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Promo code input field and 'Apply' button below the subscription area on the VIP upgrade screen
-- Validation logic for hardcoded promo codes: 'AURA-VIP' and 'WIZ2026'
-- On valid code: immediately grant lifetime VIP, persist to localStorage keyed by user email, show success message
-- On invalid code: show inline error message
-- Load VIP status from localStorage on user login (so VIP persists across sessions)
+- A `currency` state in App.tsx (type `'EGP' | 'USD' | 'EUR' | 'SAR'`) loaded from `localStorage` key `wiz_currency`, defaulting to `USD`.
+- A `setCurrency` function that saves to `localStorage` and updates state.
+- A `CurrencySelector` dropdown component (dark-themed, matches the app's `#141414` card style) with four options: EGP (ج.م), USD ($), EUR (€), SAR (ر.س).
+- Currency selector added to **BudgetSetup** screen (below the amount input, above the duration selector).
+- Currency selector added to **Edit Budget** flow (same BudgetSetup component used for editing).
 
 ### Modify
-- VIPUpgrade component: accept `currentUser` prop, add promo code UI and logic
-- App.tsx: pass `currentUser` to VIPUpgrade; load VIP status from localStorage in `initUser`; save VIP to localStorage when granted
+- Pass `currency` and `onCurrencyChange` props down from App.tsx to: `BudgetSetup`, `Dashboard`, `Analytics`, `VIPUpgrade`.
+- **Dashboard**: Replace all hardcoded `$` symbols with the correct currency symbol based on the selected currency. This includes the progress ring center text, Total Budget card, Remaining card, expense list amounts, and the VIP upgrade banner price reference.
+- **Analytics**: Replace hardcoded `$` symbols with the correct currency symbol.
+- **VIPUpgrade**: Replace hardcoded `$` in budget-related displays with the correct currency symbol (subscription price stays in USD as it is a real payment price).
+- **BudgetSetup**: Replace the hardcoded `$` prefix in the amount input with the selected currency symbol dynamically. Show currency next to the "Budget set to" confirmation line.
 
 ### Remove
-- Nothing removed
+- Hardcoded `$` prefixes in budget/expense displays across all screens (replaced by dynamic symbol).
 
 ## Implementation Plan
-1. Update App.tsx: load `wiz_vip_{email}` from localStorage in `initUser`; persist VIP state when `setIsVIP(true)` is called via promo code; pass `currentUser` to VIPUpgrade
-2. Update VIPUpgrade.tsx: add `currentUser` prop; add promo code state, input, Apply button, success/error messages; on valid code call `onUpgrade` and save to localStorage
+1. Create a `CURRENCIES` constant and a `getCurrencySymbol(currency)` helper in a shared `utils/currency.ts` file.
+2. Add `currency` state to `App.tsx`, load from `localStorage`, pass to relevant screens.
+3. Add `CurrencySelector` inline in `BudgetSetup.tsx` between amount and duration sections.
+4. Update `BudgetSetup` props interface to accept `currency` + `onCurrencyChange`.
+5. Update `Dashboard` props interface; replace all `$` with `getCurrencySymbol(currency)`.
+6. Update `Analytics` and `VIPUpgrade` props interfaces; replace budget-display `$` symbols.
+7. Ensure currency persists independently of user session (global `wiz_currency` key, not per-user), but can also be stored per-user if needed — global is fine for this feature.

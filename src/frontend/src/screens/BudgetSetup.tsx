@@ -1,14 +1,22 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Globe } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { BudgetData } from "../App";
+import {
+  CURRENCIES,
+  type Currency,
+  getCurrencySymbol,
+} from "../utils/currency";
 
 interface BudgetSetupProps {
   isVIP: boolean;
   onComplete: (budget: BudgetData) => void;
   onUpgrade: () => void;
+  currency: Currency;
+  onCurrencyChange: (c: Currency) => void;
 }
 
 const FREE_DURATIONS = [
@@ -28,6 +36,8 @@ export default function BudgetSetup({
   isVIP,
   onComplete,
   onUpgrade,
+  currency,
+  onCurrencyChange,
 }: BudgetSetupProps) {
   const [amountStr, setAmountStr] = useState("");
   const [selectedLabel, setSelectedLabel] = useState("1 Month");
@@ -82,6 +92,7 @@ export default function BudgetSetup({
 
   const amount = Number.parseFloat(amountStr);
   const canSave = amount > 0;
+  const currencySymbol = getCurrencySymbol(currency);
 
   return (
     <div
@@ -118,7 +129,7 @@ export default function BudgetSetup({
           </Label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-white/40">
-              $
+              {currencySymbol}
             </span>
             <Input
               type="number"
@@ -127,7 +138,7 @@ export default function BudgetSetup({
               value={amountStr}
               onChange={(e) => setAmountStr(e.target.value)}
               data-ocid="budget_setup.amount.input"
-              className="text-2xl font-bold pl-9 py-5"
+              className="text-2xl font-bold pl-12 py-5"
               style={{
                 background: "transparent",
                 border: "none",
@@ -139,9 +150,54 @@ export default function BudgetSetup({
           </div>
           {amount > 0 && (
             <p className="text-xs text-emerald-400 font-medium">
-              Budget set to ${amount.toFixed(2)}
+              Budget set to {currencySymbol}
+              {amount.toFixed(2)}
             </p>
           )}
+        </div>
+
+        {/* Currency Selector */}
+        <div
+          className="rounded-3xl p-5 flex flex-col gap-3"
+          style={{ background: "#141414" }}
+        >
+          <div className="flex items-center gap-2">
+            <Globe size={14} className="text-white/50" />
+            <Label className="text-xs font-semibold text-white/50 uppercase tracking-widest">
+              Currency
+            </Label>
+          </div>
+          <select
+            value={currency}
+            onChange={(e) => onCurrencyChange(e.target.value as Currency)}
+            data-ocid="budget_setup.currency.select"
+            style={{
+              background: "#1e1e1e",
+              border: "1px solid #2a2a2a",
+              color: "white",
+              borderRadius: 12,
+              padding: "10px 16px",
+              width: "100%",
+              appearance: "auto",
+              fontSize: 14,
+              fontWeight: 600,
+              outline: "none",
+              cursor: "pointer",
+            }}
+          >
+            {CURRENCIES.map((c) => (
+              <option
+                key={c.value}
+                value={c.value}
+                style={{ background: "#1e1e1e", color: "white" }}
+              >
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-white/30">
+            This currency will be used everywhere in the app
+          </p>
         </div>
 
         {/* Duration Selector */}

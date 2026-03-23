@@ -15,11 +15,13 @@ import {
 } from "recharts";
 import type { Expense } from "../types/expense";
 import { getCategoryColor } from "../types/expense";
+import { type Currency, getCurrencySymbol } from "../utils/currency";
 
 interface AnalyticsProps {
   expenses: Expense[];
   isVIP: boolean;
   onUpgrade: () => void;
+  currency: Currency;
 }
 
 const MONTHLY_DATA = [
@@ -64,8 +66,10 @@ export default function Analytics({
   expenses,
   isVIP,
   onUpgrade,
+  currency,
 }: AnalyticsProps) {
   const [activeTab, setActiveTab] = useState<"summary" | "insights">("summary");
+  const sym = getCurrencySymbol(currency);
 
   const categoryTotals = expenses.reduce<Record<string, number>>((acc, e) => {
     acc[e.category] = (acc[e.category] || 0) + e.amount;
@@ -134,7 +138,8 @@ export default function Analytics({
                 Total Spent
               </p>
               <p className="text-lg font-bold text-foreground">
-                ${totalSpent.toFixed(0)}
+                {sym}
+                {totalSpent.toFixed(0)}
               </p>
             </div>
             <div className="text-center border-x border-border">
@@ -186,7 +191,7 @@ export default function Analytics({
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(v: number) => [`$${v.toFixed(2)}`, ""]}
+                    formatter={(v: number) => [`${sym}${v.toFixed(2)}`, ""]}
                   />
                   <Legend
                     formatter={(value, entry) => {
@@ -224,7 +229,8 @@ export default function Analytics({
                     />
                     <span className="flex-1 text-sm text-body">{cat}</span>
                     <span className="text-sm font-bold text-foreground">
-                      ${amt.toFixed(2)}
+                      {sym}
+                      {amt.toFixed(2)}
                     </span>
                     <span className="text-xs text-muted-foreground w-10 text-right">
                       {((amt / totalSpent) * 100).toFixed(0)}%
@@ -346,7 +352,7 @@ export default function Analytics({
                     axisLine={false}
                     tickLine={false}
                   />
-                  <Tooltip formatter={(v: number) => [`$${v}`, "Spent"]} />
+                  <Tooltip formatter={(v: number) => [`${sym}${v}`, "Spent"]} />
                   <Bar dataKey="amount" fill="#10b981" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>

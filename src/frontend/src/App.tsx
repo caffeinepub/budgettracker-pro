@@ -12,6 +12,7 @@ import SettingsScreen from "./screens/SettingsScreen";
 import SplashScreen from "./screens/SplashScreen";
 import VIPUpgrade from "./screens/VIPUpgrade";
 import type { Expense } from "./types/expense";
+import type { Currency } from "./utils/currency";
 
 export type Screen =
   | "dashboard"
@@ -95,6 +96,14 @@ export default function App() {
     () => localStorage.getItem("wiz_dark_mode") === "true",
   );
   const [remindersEnabled, setRemindersEnabled] = useState(false);
+  const [currency, setCurrency] = useState<Currency>(
+    () => (localStorage.getItem("wiz_currency") as Currency) || "USD",
+  );
+
+  const handleCurrencyChange = (c: Currency) => {
+    localStorage.setItem("wiz_currency", c);
+    setCurrency(c);
+  };
 
   // Route guard: prevent back-button re-entry after logout
   useEffect(() => {
@@ -277,6 +286,8 @@ export default function App() {
           isVIP={isVIP}
           onComplete={handleBudgetComplete}
           onUpgrade={() => setIsVIP(true)}
+          currency={currency}
+          onCurrencyChange={handleCurrencyChange}
         />
         <Toaster position="top-center" />
       </div>
@@ -297,6 +308,7 @@ export default function App() {
             onEditBudget={() => setAppState("budget-setup")}
             darkMode={darkMode}
             onToggleDark={toggleDarkMode}
+            currency={currency}
           />
         );
       case "add":
@@ -315,6 +327,7 @@ export default function App() {
             expenses={expenses}
             isVIP={isVIP}
             onUpgrade={() => setCurrentScreen("vip")}
+            currency={currency}
           />
         );
       case "cards":

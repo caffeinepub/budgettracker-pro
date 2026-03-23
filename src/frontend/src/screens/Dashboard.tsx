@@ -14,6 +14,7 @@ import { useState } from "react";
 import type { BudgetData } from "../App";
 import type { Expense } from "../types/expense";
 import { PAYMENT_METHOD_ICONS, getCategoryIcon } from "../types/expense";
+import { type Currency, getCurrencySymbol } from "../utils/currency";
 
 interface DashboardProps {
   expenses: Expense[];
@@ -25,9 +26,18 @@ interface DashboardProps {
   onEditBudget: () => void;
   darkMode?: boolean;
   onToggleDark?: () => void;
+  currency: Currency;
 }
 
-function ProgressRing({ spent, budget }: { spent: number; budget: number }) {
+function ProgressRing({
+  spent,
+  budget,
+  currencySymbol,
+}: {
+  spent: number;
+  budget: number;
+  currencySymbol: string;
+}) {
   const radius = 70;
   const circumference = 2 * Math.PI * radius;
   const pct = budget > 0 ? Math.min(spent / budget, 1) : 0;
@@ -63,10 +73,12 @@ function ProgressRing({ spent, budget }: { spent: number; budget: number }) {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-2xl font-bold text-foreground">
-          ${spent.toFixed(0)}
+          {currencySymbol}
+          {spent.toFixed(0)}
         </span>
         <span className="text-xs text-muted-foreground font-medium">
-          of ${budget > 0 ? budget : 0}
+          of {currencySymbol}
+          {budget > 0 ? budget : 0}
         </span>
         <span className="text-xs text-muted-foreground mt-0.5">spent</span>
       </div>
@@ -84,12 +96,14 @@ export default function Dashboard({
   onEditBudget,
   darkMode = false,
   onToggleDark,
+  currency,
 }: DashboardProps) {
   const [search, setSearch] = useState("");
 
   const totalBudget = budget?.amount ?? 0;
   const spent = expenses.reduce((s, e) => s + e.amount, 0);
   const remaining = totalBudget - spent;
+  const sym = getCurrencySymbol(currency);
 
   const filteredExpenses =
     search.trim() === ""
@@ -144,7 +158,7 @@ export default function Dashboard({
 
       {/* Progress Ring Card */}
       <div className="bg-card rounded-3xl shadow-card p-6 flex flex-col items-center gap-4">
-        <ProgressRing spent={spent} budget={totalBudget} />
+        <ProgressRing spent={spent} budget={totalBudget} currencySymbol={sym} />
         {budget && (
           <p className="text-xs text-muted-foreground -mt-2">
             Budget period: {budget.durationLabel}
@@ -156,7 +170,8 @@ export default function Dashboard({
               Total Budget
             </p>
             <p className="text-lg font-bold text-foreground">
-              ${totalBudget.toFixed(0)}
+              {sym}
+              {totalBudget.toFixed(0)}
             </p>
           </div>
           <div className="bg-background rounded-2xl p-3 text-center">
@@ -168,7 +183,8 @@ export default function Dashboard({
                 remaining < 0 ? "text-destructive" : "text-emerald"
               }`}
             >
-              ${Math.abs(remaining).toFixed(0)}
+              {sym}
+              {Math.abs(remaining).toFixed(0)}
               {remaining < 0 ? " over" : ""}
             </p>
           </div>
@@ -264,13 +280,7 @@ export default function Dashboard({
                   </p>
                 </div>
                 <span className="text-sm font-bold text-foreground">
-                  {exp.currency === "USD"
-                    ? "$"
-                    : exp.currency === "EGP"
-                      ? "E£"
-                      : exp.currency === "EUR"
-                        ? "€"
-                        : exp.currency}
+                  {sym}
                   {exp.amount.toFixed(2)}
                 </span>
               </li>
