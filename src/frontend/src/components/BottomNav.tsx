@@ -1,4 +1,11 @@
-import { BarChart2, CreditCard, Home, PlusCircle, Star } from "lucide-react";
+import {
+  BarChart2,
+  CreditCard,
+  Home,
+  PlusCircle,
+  Settings,
+  Star,
+} from "lucide-react";
 import type { Screen } from "../App";
 
 interface BottomNavProps {
@@ -17,6 +24,7 @@ const tabs: {
   { id: "analytics", label: "Stats", icon: BarChart2 },
   { id: "cards", label: "Cards", icon: CreditCard },
   { id: "vip", label: "VIP", icon: Star },
+  { id: "settings", label: "Settings", icon: Settings },
 ];
 
 export default function BottomNav({
@@ -30,7 +38,7 @@ export default function BottomNav({
       className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-sm bg-card border-t border-border z-50"
       style={{ boxShadow: "0 -2px 12px rgba(0,0,0,0.08)" }}
     >
-      <div className="flex items-center justify-around h-16 px-2">
+      <div className="flex items-center justify-around h-16 px-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = current === tab.id;
@@ -42,7 +50,7 @@ export default function BottomNav({
               key={tab.id}
               data-ocid={`nav.${tab.id}.link`}
               onClick={() => onChange(tab.id)}
-              className={`flex flex-col items-center gap-1 flex-1 py-2 rounded-xl transition-all ${
+              className={`flex flex-col items-center gap-0.5 flex-1 py-2 rounded-xl transition-all ${
                 isActive
                   ? "text-emerald"
                   : isVIPTab && !isVIP
@@ -51,7 +59,7 @@ export default function BottomNav({
               }`}
             >
               <div className="relative">
-                <Icon size={20} className={isActive ? "text-emerald" : ""} />
+                <Icon size={18} className={isActive ? "text-emerald" : ""} />
                 {isCardsTab && !isVIP && (
                   <span className="absolute -top-1 -right-1 text-[8px]">
                     🔒
@@ -59,7 +67,7 @@ export default function BottomNav({
                 )}
               </div>
               <span
-                className={`text-[10px] font-semibold tracking-wide ${
+                className={`text-[9px] font-semibold tracking-wide ${
                   isActive
                     ? "text-emerald"
                     : isVIPTab && !isVIP

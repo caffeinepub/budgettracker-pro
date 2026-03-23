@@ -1,32 +1,24 @@
-# Wealth Insight Zone (WIZ) — Auth Flow
+# Wealth Insight Zone (WIZ)
 
 ## Current State
-- OnboardingScreen has a single 'Get Started' button with no email/password fields.
-- SplashScreen routes returning users (localStorage `wiz_returning`) straight to Dashboard, bypassing onboarding.
-- No logout mechanism exists. Once `wiz_returning` is set, there is no way to return to the onboarding/login screen.
+VIPUpgrade screen shows a paywall with a 'Subscribe Now' button that triggers a mock upgrade. No promo/invite code system exists. VIP state is stored in React state only (not persisted to localStorage per user account).
 
 ## Requested Changes (Diff)
 
 ### Add
-- Sign Up form: email field, password field, confirm password field, 'Create Account' button.
-- Log In form: email field, password field, 'Log In' button.
-- Tab switcher on OnboardingScreen to toggle between Sign Up and Log In views.
-- Mock local auth: store user credentials in localStorage (`wiz_users`) on sign up; validate on log in.
-- Logged-in user state stored in localStorage (`wiz_session`), used instead of `wiz_returning`.
-- Log Out button in the Dashboard header (visible to all users).
-- Logging out clears `wiz_session` and resets app state back to onboarding.
+- Promo code input field and 'Apply' button below the subscription area on the VIP upgrade screen
+- Validation logic for hardcoded promo codes: 'AURA-VIP' and 'WIZ2026'
+- On valid code: immediately grant lifetime VIP, persist to localStorage keyed by user email, show success message
+- On invalid code: show inline error message
+- Load VIP status from localStorage on user login (so VIP persists across sessions)
 
 ### Modify
-- OnboardingScreen: replace 'Get Started' button with Sign Up / Log In tabbed forms.
-- SplashScreen: check `wiz_session` instead of `wiz_returning` to decide routing.
-- Dashboard: add Log Out button in the header area.
-- App.tsx: pass logout handler down to Dashboard; handle session-based routing.
+- VIPUpgrade component: accept `currentUser` prop, add promo code UI and logic
+- App.tsx: pass `currentUser` to VIPUpgrade; load VIP status from localStorage in `initUser`; save VIP to localStorage when granted
 
 ### Remove
-- `wiz_returning` localStorage key replaced by `wiz_session`.
+- Nothing removed
 
 ## Implementation Plan
-1. Update `OnboardingScreen.tsx`: add Sign Up / Log In tabs; email + password inputs; mock auth logic using localStorage.
-2. Update `SplashScreen.tsx`: check `wiz_session` for returning user detection.
-3. Update `Dashboard.tsx`: add Log Out button in header; accept `onLogout` prop.
-4. Update `App.tsx`: pass `onLogout` to Dashboard; logout handler clears session and resets to onboarding.
+1. Update App.tsx: load `wiz_vip_{email}` from localStorage in `initUser`; persist VIP state when `setIsVIP(true)` is called via promo code; pass `currentUser` to VIPUpgrade
+2. Update VIPUpgrade.tsx: add `currentUser` prop; add promo code state, input, Apply button, success/error messages; on valid code call `onUpgrade` and save to localStorage

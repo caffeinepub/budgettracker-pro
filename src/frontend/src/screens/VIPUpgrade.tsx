@@ -7,12 +7,16 @@ import {
   Headphones,
   Zap,
 } from "lucide-react";
+import { useState } from "react";
 
 interface VIPUpgradeProps {
   isVIP: boolean;
   onUpgrade: () => void;
   onDowngrade: () => void;
+  currentUser?: string | null;
 }
+
+const VALID_CODES = ["AURA-VIP", "WIZ2026"];
 
 const BENEFITS = [
   {
@@ -45,7 +49,25 @@ export default function VIPUpgrade({
   isVIP,
   onUpgrade,
   onDowngrade,
+  currentUser,
 }: VIPUpgradeProps) {
+  const [promoCode, setPromoCode] = useState("");
+  const [promoStatus, setPromoStatus] = useState<"idle" | "success" | "error">(
+    "idle",
+  );
+
+  const handleApplyPromo = () => {
+    if (VALID_CODES.includes(promoCode.toUpperCase().trim())) {
+      onUpgrade();
+      if (currentUser) {
+        localStorage.setItem(`wiz_vip_${currentUser}`, "lifetime");
+      }
+      setPromoStatus("success");
+    } else {
+      setPromoStatus("error");
+    }
+  };
+
   if (isVIP) {
     return (
       <div
@@ -139,7 +161,7 @@ export default function VIPUpgrade({
         </div>
         <div className="bg-white/10 backdrop-blur rounded-2xl px-6 py-3">
           <span className="text-4xl font-black text-white">$2.50</span>
-          <span className="text-white/70 text-base">/month</span>
+          <span className="text-white/70 text-base">/6 months</span>
         </div>
       </div>
 
@@ -212,8 +234,57 @@ export default function VIPUpgrade({
         onClick={onUpgrade}
         className="w-full bg-emerald text-white font-black text-base py-4 rounded-2xl shadow-emerald hover:bg-emerald-dark active:scale-[0.98] transition-all"
       >
-        Subscribe Now — $2.50/mo
+        Subscribe Now — $2.50/6 months
       </button>
+
+      {/* Promo Code Section */}
+      <div
+        className="bg-card rounded-3xl shadow-card p-5"
+        data-ocid="vip.promo.panel"
+      >
+        <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-widest">
+          Have a promo code?
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            data-ocid="vip.promo.input"
+            value={promoCode}
+            onChange={(e) => {
+              setPromoCode(e.target.value);
+              setPromoStatus("idle");
+            }}
+            placeholder="Enter code (e.g. AURA-VIP)"
+            className="flex-1 bg-secondary border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald/40 focus:border-emerald transition-all"
+          />
+          <button
+            type="button"
+            data-ocid="vip.promo.submit_button"
+            onClick={handleApplyPromo}
+            disabled={!promoCode.trim()}
+            className="bg-emerald/10 border border-emerald/30 text-emerald text-sm font-bold px-4 py-2.5 rounded-xl hover:bg-emerald hover:text-white active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          >
+            Apply
+          </button>
+        </div>
+        {promoStatus === "success" && (
+          <p
+            data-ocid="vip.promo.success_state"
+            className="mt-2.5 text-sm text-emerald font-semibold flex items-center gap-1.5"
+          >
+            <Check size={14} /> Welcome to VIP! Enjoy lifetime access.
+          </p>
+        )}
+        {promoStatus === "error" && (
+          <p
+            data-ocid="vip.promo.error_state"
+            className="mt-2.5 text-sm text-destructive font-medium"
+          >
+            Invalid promo code. Please try again.
+          </p>
+        )}
+      </div>
+
       <button
         type="button"
         data-ocid="vip.maybe_later.button"

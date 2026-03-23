@@ -1,4 +1,4 @@
-import { Crown, Lock, TrendingUp } from "lucide-react";
+import { Crown, Download, FileText, Lock, TrendingUp } from "lucide-react";
 import { useState } from "react";
 import {
   Bar,
@@ -14,7 +14,7 @@ import {
   YAxis,
 } from "recharts";
 import type { Expense } from "../types/expense";
-import { CATEGORY_COLORS } from "../types/expense";
+import { getCategoryColor } from "../types/expense";
 
 interface AnalyticsProps {
   expenses: Expense[];
@@ -30,6 +30,35 @@ const MONTHLY_DATA = [
   { month: "Feb", amount: 189 },
   { month: "Mar", amount: 96 },
 ];
+
+function exportCSV(expenses: Expense[]) {
+  const header = [
+    "Date",
+    "Category",
+    "Amount",
+    "Currency",
+    "Notes",
+    "Recurring",
+  ].join(",");
+  const rows = expenses.map((e) =>
+    [
+      e.date,
+      `"${e.category}"`,
+      e.amount.toFixed(2),
+      e.currency,
+      `"${(e.notes ?? "").replace(/"/g, '""')}"`,
+      e.recurring ? "Yes" : "No",
+    ].join(","),
+  );
+  const csv = [header, ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `wiz-expenses-${new Date().toISOString().split("T")[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function Analytics({
   expenses,
@@ -152,11 +181,7 @@ export default function Analytics({
                     {pieData.map((entry) => (
                       <Cell
                         key={entry.name}
-                        fill={
-                          CATEGORY_COLORS[
-                            entry.name as keyof typeof CATEGORY_COLORS
-                          ] ?? "#6b7280"
-                        }
+                        fill={getCategoryColor(entry.name)}
                       />
                     ))}
                   </Pie>
@@ -195,12 +220,7 @@ export default function Analytics({
                   >
                     <div
                       className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{
-                        backgroundColor:
-                          CATEGORY_COLORS[
-                            cat as keyof typeof CATEGORY_COLORS
-                          ] ?? "#6b7280",
-                      }}
+                      style={{ backgroundColor: getCategoryColor(cat) }}
                     />
                     <span className="flex-1 text-sm text-body">{cat}</span>
                     <span className="text-sm font-bold text-foreground">
@@ -212,6 +232,85 @@ export default function Analytics({
                   </li>
                 ))}
             </ul>
+          </div>
+
+          {/* Export Section */}
+          <div
+            className="bg-card rounded-3xl shadow-card p-5 flex flex-col gap-4"
+            data-ocid="analytics.export.card"
+          >
+            <div className="flex items-center gap-2">
+              <Download size={16} className="text-emerald" />
+              <h2 className="text-sm font-bold text-foreground">Export Data</h2>
+              {!isVIP && (
+                <span className="ml-auto flex items-center gap-1 text-xs text-vip font-semibold bg-vip/10 px-2 py-0.5 rounded-full">
+                  <Crown size={10} /> VIP
+                </span>
+              )}
+            </div>
+
+            {isVIP ? (
+              <div className="flex flex-col gap-3">
+                <p className="text-xs text-muted-foreground">
+                  Download all your expense data
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    data-ocid="analytics.export_csv.button"
+                    onClick={() => exportCSV(expenses)}
+                    className="flex-1 flex items-center justify-center gap-2 bg-emerald text-white font-bold py-3 rounded-xl hover:bg-emerald-dark active:scale-[0.98] transition-all text-sm"
+                  >
+                    <Download size={14} />
+                    Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    data-ocid="analytics.export_pdf.button"
+                    onClick={() => window.print()}
+                    className="flex-1 flex items-center justify-center gap-2 bg-secondary text-foreground font-bold py-3 rounded-xl hover:bg-secondary/70 active:scale-[0.98] transition-all text-sm border border-border"
+                  >
+                    <FileText size={14} />
+                    Export PDF
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    disabled
+                    className="flex-1 flex items-center justify-center gap-2 bg-secondary text-muted-foreground font-bold py-3 rounded-xl opacity-50 cursor-not-allowed text-sm border border-border"
+                  >
+                    <Lock size={13} />
+                    Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    disabled
+                    className="flex-1 flex items-center justify-center gap-2 bg-secondary text-muted-foreground font-bold py-3 rounded-xl opacity-50 cursor-not-allowed text-sm border border-border"
+                  >
+                    <Lock size={13} />
+                    Export PDF
+                  </button>
+                </div>
+                <div className="flex items-center justify-between gap-3 bg-vip/5 border border-vip/20 rounded-2xl p-3">
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-semibold text-vip">VIP Feature</span>{" "}
+                    — Upgrade to export your data
+                  </p>
+                  <button
+                    type="button"
+                    data-ocid="analytics.export.upgrade.button"
+                    onClick={onUpgrade}
+                    className="text-xs font-bold text-white bg-emerald px-3 py-1.5 rounded-lg hover:bg-emerald-dark transition-colors flex-shrink-0"
+                  >
+                    Upgrade
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}

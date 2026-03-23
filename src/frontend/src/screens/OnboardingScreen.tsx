@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 interface WizUser {
   email: string;
@@ -11,7 +12,7 @@ interface WizUser {
 }
 
 interface OnboardingScreenProps {
-  onComplete: () => void;
+  onComplete: (email: string) => void;
 }
 
 function getUsers(): WizUser[] {
@@ -25,7 +26,6 @@ function getUsers(): WizUser[] {
 export default function OnboardingScreen({
   onComplete,
 }: OnboardingScreenProps) {
-  // Sign Up state
   const [signUpEmail, setSignUpEmail] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
   const [signUpConfirm, setSignUpConfirm] = useState("");
@@ -33,7 +33,6 @@ export default function OnboardingScreen({
   const [showSignUpPass, setShowSignUpPass] = useState(false);
   const [showSignUpConfirm, setShowSignUpConfirm] = useState(false);
 
-  // Log In state
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -42,7 +41,6 @@ export default function OnboardingScreen({
   const handleSignUp = (e: React.FormEvent) => {
     e.preventDefault();
     setSignUpError("");
-
     if (!signUpEmail.includes("@")) {
       setSignUpError("Please enter a valid email address.");
       return;
@@ -55,7 +53,6 @@ export default function OnboardingScreen({
       setSignUpError("Passwords do not match.");
       return;
     }
-
     const users = getUsers();
     if (
       users.find((u) => u.email.toLowerCase() === signUpEmail.toLowerCase())
@@ -63,31 +60,27 @@ export default function OnboardingScreen({
       setSignUpError("An account with this email already exists.");
       return;
     }
-
     users.push({ email: signUpEmail, password: signUpPassword });
     localStorage.setItem("wiz_users", JSON.stringify(users));
     localStorage.setItem("wiz_session", signUpEmail);
-    onComplete();
+    onComplete(signUpEmail);
   };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
-
     const users = getUsers();
     const match = users.find(
       (u) =>
         u.email.toLowerCase() === loginEmail.toLowerCase() &&
         u.password === loginPassword,
     );
-
     if (!match) {
       setLoginError("Invalid email or password.");
       return;
     }
-
     localStorage.setItem("wiz_session", loginEmail);
-    onComplete();
+    onComplete(loginEmail);
   };
 
   return (
@@ -118,6 +111,63 @@ export default function OnboardingScreen({
           >
             Wealth Insight Zone
           </p>
+        </div>
+
+        {/* Social Auth */}
+        <div className="w-full flex flex-col gap-3">
+          <button
+            type="button"
+            data-ocid="auth.google.button"
+            onClick={() => toast("Google sign-in coming soon!")}
+            className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 font-semibold py-3.5 rounded-2xl hover:bg-gray-100 active:scale-[0.98] transition-all text-sm"
+          >
+            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+              <path
+                fill="#EA4335"
+                d="M24 9.5c3.1 0 5.6 1.1 7.6 2.9l5.6-5.6C33.5 3.6 29.1 1.5 24 1.5 14.8 1.5 7 7.4 3.9 15.6l6.6 5.1C12.1 14 17.6 9.5 24 9.5z"
+              />
+              <path
+                fill="#4285F4"
+                d="M46.5 24c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.5 2.7-2.1 5-4.4 6.6l6.8 5.3c4-3.7 6.4-9.2 6.4-15.9z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M10.5 28.5c-.5-1.5-.8-3.2-.8-4.9s.3-3.4.8-4.9l-6.6-5.1C2.5 16.8 1.5 20.3 1.5 24s1 7.2 2.4 10.4l6.6-5.9z"
+              />
+              <path
+                fill="#34A853"
+                d="M24 46.5c5.1 0 9.4-1.7 12.5-4.6l-6.8-5.3c-1.7 1.2-3.9 1.9-5.7 1.9-6.4 0-11.9-4.5-13.5-10.6l-6.6 5.9C7 40.6 14.8 46.5 24 46.5z"
+              />
+            </svg>
+            Continue with Google
+          </button>
+          <button
+            type="button"
+            data-ocid="auth.facebook.button"
+            onClick={() => toast("Facebook sign-in coming soon!")}
+            className="w-full flex items-center justify-center gap-3 font-semibold py-3.5 rounded-2xl active:scale-[0.98] transition-all text-sm text-white"
+            style={{ background: "#1877F2" }}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="white"
+              aria-hidden="true"
+            >
+              <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.413c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.234 2.686.234v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z" />
+            </svg>
+            Continue with Facebook
+          </button>
+        </div>
+
+        {/* Divider */}
+        <div className="w-full flex items-center gap-3">
+          <div className="flex-1 h-px" style={{ background: "#2a2a2a" }} />
+          <span className="text-xs text-white/40 font-medium">
+            or continue with email
+          </span>
+          <div className="flex-1 h-px" style={{ background: "#2a2a2a" }} />
         </div>
 
         {/* Auth Tabs */}
@@ -170,7 +220,6 @@ export default function OnboardingScreen({
                   }}
                 />
               </div>
-
               <div className="flex flex-col gap-1.5">
                 <Label
                   htmlFor="login-password"
@@ -206,7 +255,6 @@ export default function OnboardingScreen({
                   </button>
                 </div>
               </div>
-
               {loginError && (
                 <p
                   data-ocid="login.error_state"
@@ -216,7 +264,6 @@ export default function OnboardingScreen({
                   {loginError}
                 </p>
               )}
-
               <Button
                 type="submit"
                 data-ocid="login.submit_button"
@@ -255,7 +302,6 @@ export default function OnboardingScreen({
                   }}
                 />
               </div>
-
               <div className="flex flex-col gap-1.5">
                 <Label
                   htmlFor="signup-password"
@@ -291,7 +337,6 @@ export default function OnboardingScreen({
                   </button>
                 </div>
               </div>
-
               <div className="flex flex-col gap-1.5">
                 <Label
                   htmlFor="signup-confirm"
@@ -331,7 +376,6 @@ export default function OnboardingScreen({
                   </button>
                 </div>
               </div>
-
               {signUpError && (
                 <p
                   data-ocid="signup.error_state"
@@ -341,7 +385,6 @@ export default function OnboardingScreen({
                   {signUpError}
                 </p>
               )}
-
               <Button
                 type="submit"
                 data-ocid="signup.submit_button"

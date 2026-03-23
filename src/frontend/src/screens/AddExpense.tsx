@@ -7,17 +7,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import DurationSelector, {
   type DurationValue,
 } from "../components/DurationSelector";
-import type { Category, Currency, Expense } from "../types/expense";
-import { CATEGORY_ICONS } from "../types/expense";
+import type { Currency, Expense, PaymentMethod } from "../types/expense";
+import {
+  CATEGORY_ICONS,
+  PAYMENT_METHODS,
+  PAYMENT_METHOD_ICONS,
+  getCategoryIcon,
+  sanitizeInput,
+} from "../types/expense";
 
-const CATEGORIES: Category[] = [
+const DEFAULT_CATEGORIES = [
   "Transportation",
   "Food",
   "Lab Supplies",
@@ -26,6 +33,7 @@ const CATEGORIES: Category[] = [
   "Shopping",
   "Other",
 ];
+
 const CURRENCIES: Currency[] = ["USD", "EGP", "EUR", "GBP", "CAD", "AED"];
 
 const CURRENCY_SYMBOLS: Record<Currency, string> = {
@@ -42,10 +50,25 @@ interface AddExpenseProps {
   onCancel: () => void;
   isVIP?: boolean;
   onUpgrade?: () => void;
+  currentUser?: string | null;
 }
 
 function formatCurrency(amount: number, currency: Currency, decimals = 2) {
   return `${CURRENCY_SYMBOLS[currency]}${amount.toFixed(decimals)}`;
+}
+
+function getCustomCategories(email: string | null | undefined): string[] {
+  if (!email) return [];
+  try {
+    const raw = localStorage.getItem(`wiz_custom_categories_${email}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomCategories(email: string, cats: string[]) {
+  localStorage.setItem(`wiz_custom_categories_${email}`, JSON.stringify(cats));
 }
 
 export default function AddExpense({
@@ -53,30 +76,83 @@ export default function AddExpense({
   onCancel,
   isVIP = false,
   onUpgrade,
+  currentUser,
 }: AddExpenseProps) {
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<Currency>("USD");
-  const [category, setCategory] = useState<Category | null>(null);
+  const [category, setCategory] = useState<string | null>(null);
+  const [customCategoryInput, setCustomCategoryInput] = useState("");
+  const [customCategories, setCustomCategories] = useState<string[]>(() =>
+    getCustomCategories(currentUser),
+  );
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [duration, setDuration] = useState<DurationValue | null>(null);
+  const [recurring, setRecurring] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Cash");
+
+  const allCategories = [
+    ...DEFAULT_CATEGORIES,
+    ...customCategories.filter((c) => !DEFAULT_CATEGORIES.includes(c)),
+  ];
+
+  const selectedCategory = customCategoryInput.trim()
+    ? customCategoryInput.trim()
+    : category;
+
+  const handlePresetClick = (cat: string) => {
+    setCategory(cat);
+    setCustomCategoryInput("");
+  };
+
+  const handleAddCustomCategory = () => {
+    const val = sanitizeInput(customCategoryInput);
+    if (
+      !val ||
+      DEFAULT_CATEGORIES.includes(val) ||
+      customCategories.includes(val)
+    )
+      return;
+    const updated = [...customCategories, val];
+    setCustomCategories(updated);
+    if (currentUser) saveCustomCategories(currentUser, updated);
+  };
 
   const handleSubmit = () => {
     if (!amount || Number(amount) <= 0) {
       toast.error("Please enter a valid amount");
       return;
     }
-    if (!category) {
+    if (!selectedCategory) {
       toast.error("Please select a category");
       return;
     }
+
+    const sanitizedNotes = sanitizeInput(notes);
+    const sanitizedCustomCat = sanitizeInput(customCategoryInput);
+    const finalCategory = sanitizedCustomCat || category || "";
+
+    // Save custom category to storage if it's new
+    if (
+      sanitizedCustomCat &&
+      !DEFAULT_CATEGORIES.includes(sanitizedCustomCat) &&
+      !customCategories.includes(sanitizedCustomCat) &&
+      currentUser
+    ) {
+      const updated = [...customCategories, sanitizedCustomCat];
+      setCustomCategories(updated);
+      saveCustomCategories(currentUser, updated);
+    }
+
     const expense: Expense = {
       id: Date.now().toString(),
       amount: Number(amount),
       currency,
-      category,
-      notes,
+      category: finalCategory,
+      notes: sanitizedNotes,
       date,
+      recurring,
+      paymentMethod,
     };
     onSave(expense);
     toast.success("Expense saved!");
@@ -153,20 +229,82 @@ export default function AddExpense({
           className="grid grid-cols-2 gap-2 mt-3"
           data-ocid="add_expense.category.select"
         >
-          {CATEGORIES.map((cat) => (
+          {allCategories.map((cat) => (
             <button
               type="button"
               key={cat}
-              data-ocid={`add_expense.category.${cat.toLowerCase().replace(/ /g, "_")}.toggle`}
-              onClick={() => setCategory(cat)}
+              data-ocid={`add_expense.category.${cat.toLowerCase().replace(/[^a-z0-9]/g, "_")}.toggle`}
+              onClick={() => handlePresetClick(cat)}
               className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
-                category === cat
+                !customCategoryInput.trim() && category === cat
                   ? "bg-emerald text-white border-emerald shadow-emerald"
                   : "bg-background text-body border-border hover:border-emerald/40"
               }`}
             >
-              <span>{CATEGORY_ICONS[cat]}</span>
-              <span>{cat}</span>
+              <span>{getCategoryIcon(cat)}</span>
+              <span className="truncate">{cat}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Custom category input */}
+        <div className="mt-3 flex items-center gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+              📌
+            </span>
+            <Input
+              data-ocid="add_expense.custom_category.input"
+              placeholder="Or type a custom category…"
+              value={customCategoryInput}
+              onChange={(e) => {
+                setCustomCategoryInput(e.target.value);
+                if (e.target.value.trim()) setCategory(null);
+              }}
+              className="pl-9 rounded-xl border-border text-sm"
+            />
+          </div>
+          <button
+            type="button"
+            data-ocid="add_expense.add_custom_category.button"
+            onClick={handleAddCustomCategory}
+            disabled={!customCategoryInput.trim()}
+            className="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald/10 text-emerald hover:bg-emerald/20 disabled:opacity-40 transition-colors flex-shrink-0"
+            title="Save custom category"
+          >
+            <Plus size={16} />
+          </button>
+        </div>
+        {customCategoryInput.trim() && (
+          <p className="text-xs text-emerald mt-1.5 ml-1">
+            Using "{customCategoryInput.trim()}" as category
+          </p>
+        )}
+      </div>
+
+      {/* Payment Method */}
+      <div
+        className="bg-card rounded-3xl shadow-card p-5 flex flex-col gap-3"
+        data-ocid="add_expense.payment_method.section"
+      >
+        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+          Payment Method
+        </Label>
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          {PAYMENT_METHODS.map((method) => (
+            <button
+              type="button"
+              key={method}
+              data-ocid={`add_expense.payment.${method.toLowerCase().replace(/[^a-z0-9]/g, "_")}.toggle`}
+              onClick={() => setPaymentMethod(method)}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                paymentMethod === method
+                  ? "bg-emerald text-white border-emerald"
+                  : "bg-background text-body border-border hover:border-emerald/40"
+              }`}
+            >
+              <span>{PAYMENT_METHOD_ICONS[method]}</span>
+              <span>{method}</span>
             </button>
           ))}
         </div>
@@ -259,6 +397,25 @@ export default function AddExpense({
           </div>
         </div>
       )}
+
+      {/* Recurring toggle */}
+      <div className="bg-card rounded-3xl shadow-card p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              Recurring monthly expense
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Auto-deduct this amount every month
+            </p>
+          </div>
+          <Switch
+            data-ocid="add_expense.recurring.switch"
+            checked={recurring}
+            onCheckedChange={setRecurring}
+          />
+        </div>
+      </div>
 
       {/* Submit */}
       <button
