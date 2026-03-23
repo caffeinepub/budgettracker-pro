@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import BottomNav from "./components/BottomNav";
 import AddExpense from "./screens/AddExpense";
+import AdminPanel from "./screens/AdminPanel";
 import Analytics from "./screens/Analytics";
 import BudgetSetup from "./screens/BudgetSetup";
 import Dashboard from "./screens/Dashboard";
@@ -100,6 +101,8 @@ export default function App() {
     () => (localStorage.getItem("wiz_currency") as Currency) || "USD",
   );
 
+  const isAdmin = currentUser?.toLowerCase() === "admin@aura.com";
+
   const handleCurrencyChange = (c: Currency) => {
     localStorage.setItem("wiz_currency", c);
     setCurrency(c);
@@ -181,6 +184,9 @@ export default function App() {
   const initUser = (email: string) => {
     setCurrentUser(email);
 
+    // Admin doesn't need full user init
+    if (email.toLowerCase() === "admin@aura.com") return;
+
     // Load reminders preference
     const remindersRaw = localStorage.getItem(`wiz_reminders_${email}`);
     setRemindersEnabled(remindersRaw === "true");
@@ -218,8 +224,13 @@ export default function App() {
 
   const handleSplashComplete = (email: string | null) => {
     if (email) {
-      const savedBudget = getBudget(email);
       initUser(email);
+      // Admin goes straight to main
+      if (email.toLowerCase() === "admin@aura.com") {
+        setAppState("main");
+        return;
+      }
+      const savedBudget = getBudget(email);
       if (savedBudget) {
         setBudget(savedBudget);
         setAppState("main");
@@ -233,6 +244,11 @@ export default function App() {
 
   const handleOnboardingComplete = (email: string) => {
     initUser(email);
+    // Admin goes straight to main
+    if (email.toLowerCase() === "admin@aura.com") {
+      setAppState("main");
+      return;
+    }
     const savedBudget = getBudget(email);
     if (savedBudget) {
       setBudget(savedBudget);
@@ -294,6 +310,16 @@ export default function App() {
     );
   }
 
+  // Admin: full-screen, no BottomNav
+  if (isAdmin) {
+    return (
+      <div style={{ background: "#0a0a0a", minHeight: "100dvh" }}>
+        <AdminPanel onLogout={handleLogout} />
+        <Toaster position="top-center" />
+      </div>
+    );
+  }
+
   const renderScreen = () => {
     switch (currentScreen) {
       case "dashboard":
@@ -309,6 +335,7 @@ export default function App() {
             darkMode={darkMode}
             onToggleDark={toggleDarkMode}
             currency={currency}
+            currentUser={currentUser}
           />
         );
       case "add":

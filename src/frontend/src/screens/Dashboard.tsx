@@ -27,6 +27,7 @@ interface DashboardProps {
   darkMode?: boolean;
   onToggleDark?: () => void;
   currency: Currency;
+  currentUser: string | null;
 }
 
 function ProgressRing({
@@ -97,8 +98,28 @@ export default function Dashboard({
   darkMode = false,
   onToggleDark,
   currency,
+  currentUser,
 }: DashboardProps) {
   const [search, setSearch] = useState("");
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const [reminderDismissed, setReminderDismissed] = useState(() => {
+    if (!currentUser) return true;
+    return (
+      localStorage.getItem(`wiz_reminder_dismissed_${currentUser}`) === today
+    );
+  });
+
+  const hasExpenseToday = expenses.some((e) => e.date === today);
+  const showReminder = !hasExpenseToday && !reminderDismissed;
+
+  const handleDismissReminder = () => {
+    if (currentUser) {
+      localStorage.setItem(`wiz_reminder_dismissed_${currentUser}`, today);
+    }
+    setReminderDismissed(true);
+  };
 
   const totalBudget = budget?.amount ?? 0;
   const spent = expenses.reduce((s, e) => s + e.amount, 0);
@@ -155,6 +176,36 @@ export default function Dashboard({
           <LogOut size={13} />
         </button>
       </div>
+
+      {/* Daily Reminder Banner */}
+      {showReminder && (
+        <div
+          data-ocid="dashboard.reminder.card"
+          className="flex items-center gap-3 rounded-2xl px-4 py-3"
+          style={{
+            background: "rgba(245, 158, 11, 0.08)",
+            border: "1px solid rgba(245, 158, 11, 0.28)",
+          }}
+        >
+          <span className="text-base leading-none select-none">🎯</span>
+          <p
+            className="flex-1 text-xs font-semibold"
+            style={{ color: "#f59e0b" }}
+          >
+            Don&apos;t forget to track your spending today, Chief!
+          </p>
+          <button
+            type="button"
+            data-ocid="dashboard.reminder.close_button"
+            onClick={handleDismissReminder}
+            aria-label="Dismiss reminder"
+            className="flex-shrink-0 hover:opacity-70 transition-opacity"
+            style={{ color: "#f59e0b" }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       {/* Progress Ring Card */}
       <div className="bg-card rounded-3xl shadow-card p-6 flex flex-col items-center gap-4">

