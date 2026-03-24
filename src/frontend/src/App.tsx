@@ -11,8 +11,10 @@ import LinkedCards from "./screens/LinkedCards";
 import OnboardingScreen from "./screens/OnboardingScreen";
 import SettingsScreen from "./screens/SettingsScreen";
 import SplashScreen from "./screens/SplashScreen";
+import UpcomingScreen from "./screens/UpcomingScreen";
 import VIPUpgrade from "./screens/VIPUpgrade";
-import type { Expense } from "./types/expense";
+import type { Expense, ScheduledExpense } from "./types/expense";
+import { inferCategory } from "./types/expense";
 import type { Currency } from "./utils/currency";
 
 export type Screen =
@@ -21,7 +23,8 @@ export type Screen =
   | "analytics"
   | "cards"
   | "vip"
-  | "settings";
+  | "settings"
+  | "upcoming";
 type AppState = "splash" | "onboarding" | "budget-setup" | "main";
 
 export interface BudgetData {
@@ -56,33 +59,86 @@ function saveExpenses(email: string, expenses: Expense[]) {
   localStorage.setItem(`wiz_expenses_${email}`, JSON.stringify(expenses));
 }
 
-function processRecurring(email: string, current: Expense[]): Expense[] {
+export function loadScheduled(email: string): ScheduledExpense[] {
   try {
-    const recurringRaw = localStorage.getItem(`wiz_recurring_${email}`);
-    if (!recurringRaw) return current;
-    const recurring: Expense[] = JSON.parse(recurringRaw);
-    if (!recurring.length) return current;
-
-    const lastRaw = localStorage.getItem(`wiz_recurring_last_${email}`);
-    const lastDate = lastRaw ? new Date(lastRaw) : null;
-    const now = new Date();
-    const daysSinceLast = lastDate
-      ? (now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24)
-      : 999;
-
-    if (daysSinceLast >= 30) {
-      const newExpenses = recurring.map((e) => ({
-        ...e,
-        id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        date: now.toISOString().split("T")[0],
-      }));
-      localStorage.setItem(`wiz_recurring_last_${email}`, now.toISOString());
-      return [...newExpenses, ...current];
-    }
-    return current;
+    const raw = localStorage.getItem(`wiz_scheduled_${email}`);
+    return raw ? JSON.parse(raw) : [];
   } catch {
-    return current;
+    return [];
   }
+}
+
+export function saveScheduled(email: string, items: ScheduledExpense[]) {
+  localStorage.setItem(`wiz_scheduled_${email}`, JSON.stringify(items));
+}
+
+/**
+ * Apply smart category inference: for any expense with a missing,
+ * empty, or "Other" category, infer from notes and update in place.
+ * Returns { updated expenses, didChange }.
+ */
+function applySmartCategories(expenses: Expense[]): {
+  result: Expense[];
+  changed: boolean;
+} {
+  let changed = false;
+  const result = expenses.map((e) => {
+    if (!e.category || e.category === "" || e.category === "Other") {
+      const inferred = inferCategory(e.notes);
+      changed = true;
+      return { ...e, category: inferred };
+    }
+    return e;
+  });
+  return { result, changed };
+}
+
+function processScheduledExpenses(
+  email: string,
+  currentExpenses: Expense[],
+  currentScheduled: ScheduledExpense[],
+): {
+  updatedExpenses: Expense[];
+  updatedScheduled: ScheduledExpense[];
+  deductedCount: number;
+} {
+  const today = new Date().toISOString().split("T")[0];
+  const toDeduct = currentScheduled.filter(
+    (s) => !s.cancelled && s.scheduledDate <= today,
+  );
+  const remaining = currentScheduled.filter(
+    (s) => s.cancelled || s.scheduledDate > today,
+  );
+
+  if (toDeduct.length === 0) {
+    return {
+      updatedExpenses: currentExpenses,
+      updatedScheduled: currentScheduled,
+      deductedCount: 0,
+    };
+  }
+
+  const newExpenses: Expense[] = toDeduct.map((s) => ({
+    id: s.id,
+    amount: s.amount,
+    currency: s.currency,
+    category: s.category,
+    notes: s.notes,
+    date: s.scheduledDate,
+    recurring: true,
+    paymentMethod: s.paymentMethod,
+    scheduledParentId: s.parentId,
+  }));
+
+  const updatedExpenses = [...newExpenses, ...currentExpenses];
+  saveExpenses(email, updatedExpenses);
+  saveScheduled(email, remaining);
+
+  return {
+    updatedExpenses,
+    updatedScheduled: remaining,
+    deductedCount: toDeduct.length,
+  };
 }
 
 export default function App() {
@@ -90,6 +146,9 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
   const [isVIP, setIsVIP] = useState(false);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [scheduledExpenses, setScheduledExpenses] = useState<
+    ScheduledExpense[]
+  >([]);
   const [aiTrackingEnabled, setAiTrackingEnabled] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [budget, setBudget] = useState<BudgetData | null>(null);
@@ -108,7 +167,6 @@ export default function App() {
     setCurrency(c);
   };
 
-  // Route guard: prevent back-button re-entry after logout
   useEffect(() => {
     const handlePopState = () => {
       if (appState !== "main") {
@@ -134,39 +192,36 @@ export default function App() {
       localStorage.setItem(`wiz_reminders_${currentUser}`, String(next));
   };
 
-  const addExpense = (expense: Expense) => {
-    setExpenses((prev) => {
-      const next = [expense, ...prev];
-      if (currentUser) saveExpenses(currentUser, next);
-      return next;
-    });
-    // Store recurring separately
-    if (expense.recurring && currentUser) {
-      try {
-        const raw = localStorage.getItem(`wiz_recurring_${currentUser}`);
-        const existing: Expense[] = raw ? JSON.parse(raw) : [];
-        const updated = [
-          ...existing.filter(
-            (e) =>
-              e.category !== expense.category || e.amount !== expense.amount,
-          ),
-          expense,
-        ];
-        localStorage.setItem(
-          `wiz_recurring_${currentUser}`,
-          JSON.stringify(updated),
-        );
-        if (!localStorage.getItem(`wiz_recurring_last_${currentUser}`)) {
-          localStorage.setItem(
-            `wiz_recurring_last_${currentUser}`,
-            new Date().toISOString(),
-          );
-        }
-      } catch {
-        // ignore
-      }
+  const addExpense = (expense: Expense, newScheduled?: ScheduledExpense[]) => {
+    if (newScheduled && newScheduled.length > 0 && currentUser) {
+      const existing = loadScheduled(currentUser);
+      const updated = [...existing, ...newScheduled];
+      saveScheduled(currentUser, updated);
+      setScheduledExpenses(updated);
     }
+
+    const today = new Date().toISOString().split("T")[0];
+    if (expense.date <= today) {
+      setExpenses((prev) => {
+        const next = [expense, ...prev];
+        if (currentUser) saveExpenses(currentUser, next);
+        return next;
+      });
+    }
+
     setCurrentScreen("dashboard");
+  };
+
+  const cancelScheduled = (id: string) => {
+    if (!currentUser) return;
+    setScheduledExpenses((prev) => {
+      const updated = prev.map((s) =>
+        s.id === id ? { ...s, cancelled: true } : s,
+      );
+      saveScheduled(currentUser, updated);
+      return updated;
+    });
+    toast.success("Scheduled expense cancelled.");
   };
 
   const handleLogout = () => {
@@ -174,35 +229,49 @@ export default function App() {
     setCurrentUser(null);
     setBudget(null);
     setExpenses([]);
+    setScheduledExpenses([]);
     setRemindersEnabled(false);
     setAppState("onboarding");
-    // Push two history entries to prevent back-button returning to the app
     window.history.pushState(null, "", window.location.href);
     window.history.pushState(null, "", window.location.href);
   };
 
   const initUser = (email: string) => {
     setCurrentUser(email);
-
-    // Admin doesn't need full user init
     if (email.toLowerCase() === "admin@aura.com") return;
 
-    // Load reminders preference
     const remindersRaw = localStorage.getItem(`wiz_reminders_${email}`);
     setRemindersEnabled(remindersRaw === "true");
 
-    let loaded = loadExpenses(email);
-    loaded = processRecurring(email, loaded);
-    if (loaded.length !== loadExpenses(email).length) {
-      saveExpenses(email, loaded);
-    }
-    setExpenses(loaded);
+    const rawExpenses = loadExpenses(email);
 
-    // Restore VIP status from localStorage
+    // Smart category assignment for old/uncategorized expenses
+    const { result: categorizedExpenses, changed } =
+      applySmartCategories(rawExpenses);
+    if (changed) {
+      saveExpenses(email, categorizedExpenses);
+    }
+
+    const loadedScheduled = loadScheduled(email);
+
+    const { updatedExpenses, updatedScheduled, deductedCount } =
+      processScheduledExpenses(email, categorizedExpenses, loadedScheduled);
+
+    setExpenses(updatedExpenses);
+    setScheduledExpenses(updatedScheduled);
+
+    if (deductedCount > 0) {
+      setTimeout(() => {
+        toast.success(
+          `${deductedCount} scheduled expense${deductedCount > 1 ? "s were" : " was"} deducted today from your balance.`,
+          { duration: 5000 },
+        );
+      }, 800);
+    }
+
     const vipStatus = localStorage.getItem(`wiz_vip_${email}`);
     if (vipStatus === "lifetime") setIsVIP(true);
 
-    // Check if daily reminder should show (24+ hours since last)
     const remindersEnabledNow = remindersRaw === "true";
     if (remindersEnabledNow) {
       const lastReminderRaw = localStorage.getItem(
@@ -225,7 +294,6 @@ export default function App() {
   const handleSplashComplete = (email: string | null) => {
     if (email) {
       initUser(email);
-      // Admin goes straight to main
       if (email.toLowerCase() === "admin@aura.com") {
         setAppState("main");
         return;
@@ -244,7 +312,6 @@ export default function App() {
 
   const handleOnboardingComplete = (email: string) => {
     initUser(email);
-    // Admin goes straight to main
     if (email.toLowerCase() === "admin@aura.com") {
       setAppState("main");
       return;
@@ -259,14 +326,11 @@ export default function App() {
   };
 
   const handleBudgetComplete = (newBudget: BudgetData) => {
-    if (currentUser) {
-      saveBudget(currentUser, newBudget);
-    }
+    if (currentUser) saveBudget(currentUser, newBudget);
     setBudget(newBudget);
     setAppState("main");
   };
 
-  // Route guard: never render main app without a valid session
   if (appState === "main" && !currentUser) {
     setAppState("onboarding");
     return null;
@@ -291,7 +355,6 @@ export default function App() {
   }
 
   if (appState === "budget-setup") {
-    // Guard: budget-setup also requires a user
     if (!currentUser) {
       setAppState("onboarding");
       return null;
@@ -310,7 +373,6 @@ export default function App() {
     );
   }
 
-  // Admin: full-screen, no BottomNav
   if (isAdmin) {
     return (
       <div style={{ background: "#0a0a0a", minHeight: "100dvh" }}>
@@ -326,6 +388,7 @@ export default function App() {
         return (
           <Dashboard
             expenses={expenses}
+            scheduledExpenses={scheduledExpenses}
             budget={budget}
             isVIP={isVIP}
             onAddExpense={() => setCurrentScreen("add")}
@@ -336,6 +399,8 @@ export default function App() {
             onToggleDark={toggleDarkMode}
             currency={currency}
             currentUser={currentUser}
+            onOpenSettings={() => setCurrentScreen("settings")}
+            onOpenUpcoming={() => setCurrentScreen("upcoming")}
           />
         );
       case "add":
@@ -355,6 +420,7 @@ export default function App() {
             isVIP={isVIP}
             onUpgrade={() => setCurrentScreen("vip")}
             currency={currency}
+            darkMode={darkMode}
           />
         );
       case "cards":
@@ -390,6 +456,15 @@ export default function App() {
             onBack={() => setCurrentScreen("dashboard")}
           />
         );
+      case "upcoming":
+        return (
+          <UpcomingScreen
+            scheduledExpenses={scheduledExpenses}
+            onCancel={cancelScheduled}
+            onBack={() => setCurrentScreen("dashboard")}
+            currency={currency}
+          />
+        );
       default:
         return null;
     }
@@ -407,6 +482,7 @@ export default function App() {
           current={currentScreen}
           isVIP={isVIP}
           onChange={setCurrentScreen}
+          scheduledCount={scheduledExpenses.filter((s) => !s.cancelled).length}
         />
       </div>
       <Toaster position="top-center" />

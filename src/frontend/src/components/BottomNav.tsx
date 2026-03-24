@@ -1,9 +1,9 @@
 import {
   BarChart2,
+  CalendarClock,
   CreditCard,
   Home,
   PlusCircle,
-  Settings,
   Star,
 } from "lucide-react";
 import type { Screen } from "../App";
@@ -12,6 +12,7 @@ interface BottomNavProps {
   current: Screen;
   isVIP: boolean;
   onChange: (screen: Screen) => void;
+  scheduledCount?: number;
 }
 
 const tabs: {
@@ -21,16 +22,17 @@ const tabs: {
 }[] = [
   { id: "dashboard", label: "Home", icon: Home },
   { id: "add", label: "Add", icon: PlusCircle },
+  { id: "upcoming", label: "Upcoming", icon: CalendarClock },
   { id: "analytics", label: "Stats", icon: BarChart2 },
   { id: "cards", label: "Cards", icon: CreditCard },
   { id: "vip", label: "VIP", icon: Star },
-  { id: "settings", label: "Settings", icon: Settings },
 ];
 
 export default function BottomNav({
   current,
   isVIP,
   onChange,
+  scheduledCount = 0,
 }: BottomNavProps) {
   return (
     <nav
@@ -44,11 +46,11 @@ export default function BottomNav({
           const isActive = current === tab.id;
           const isVIPTab = tab.id === "vip";
           const isCardsTab = tab.id === "cards";
+          const isUpcomingTab = tab.id === "upcoming";
           return (
             <button
               type="button"
               key={tab.id}
-              data-ocid={`nav.${tab.id}.link`}
               onClick={() => onChange(tab.id)}
               className={`flex flex-col items-center gap-0.5 flex-1 py-2 rounded-xl transition-all ${
                 isActive
@@ -63,6 +65,19 @@ export default function BottomNav({
                 {isCardsTab && !isVIP && (
                   <span className="absolute -top-1 -right-1 text-[8px]">
                     🔒
+                  </span>
+                )}
+                {isUpcomingTab && scheduledCount > 0 && (
+                  <span
+                    className="absolute -top-1.5 -right-2 text-[9px] font-bold px-1 rounded-full"
+                    style={{
+                      background: "#818cf8",
+                      color: "#fff",
+                      minWidth: 14,
+                      textAlign: "center",
+                    }}
+                  >
+                    {scheduledCount > 99 ? "99+" : scheduledCount}
                   </span>
                 )}
               </div>

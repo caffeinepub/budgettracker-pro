@@ -9,6 +9,8 @@ export type PaymentMethod =
   | "Credit Card"
   | "Debit Card";
 
+export type RecurringFrequency = "daily" | "weekly" | "monthly";
+
 export const PAYMENT_METHODS: PaymentMethod[] = [
   "Cash",
   "Bank Account",
@@ -31,9 +33,23 @@ export interface Expense {
   currency: Currency;
   category: Category;
   notes?: string;
-  date: string;
+  date: string; // ISO date YYYY-MM-DD
   recurring?: boolean;
   paymentMethod?: PaymentMethod;
+  scheduledParentId?: string;
+}
+
+export interface ScheduledExpense {
+  id: string;
+  parentId: string;
+  amount: number;
+  currency: Currency;
+  category: Category;
+  notes?: string;
+  scheduledDate: string;
+  frequency: RecurringFrequency;
+  paymentMethod?: PaymentMethod;
+  cancelled?: boolean;
 }
 
 export const CATEGORY_ICONS: Record<string, string> = {
@@ -43,6 +59,8 @@ export const CATEGORY_ICONS: Record<string, string> = {
   Entertainment: "🎮",
   Health: "💊",
   Shopping: "🛍️",
+  Utilities: "⚡",
+  Uncategorized: "📌",
   Other: "📦",
 };
 
@@ -53,6 +71,8 @@ export const CATEGORY_COLORS: Record<string, string> = {
   Entertainment: "#8b5cf6",
   Health: "#ef4444",
   Shopping: "#ec4899",
+  Utilities: "#06b6d4",
+  Uncategorized: "#6b7280",
   Other: "#6b7280",
 };
 
@@ -65,18 +85,74 @@ export function getCategoryColor(cat: string): string {
 }
 
 /**
- * Sanitizes user input to prevent XSS attacks.
- * - Strips HTML tags (< and > characters)
- * - Removes javascript: protocol patterns
- * - Removes on*= event handler patterns
- * - Trims whitespace
+ * Silently infer a category from the expense notes/description.
+ * Returns a best-guess category string, or "Uncategorized" if unclear.
  */
+export function inferCategory(notes?: string): string {
+  if (!notes) return "Uncategorized";
+  const n = notes.toLowerCase();
+  if (
+    /food|lunch|dinner|breakfast|restaurant|cafe|coffee|pizza|burger|groceries|supermarket|meal|snack|drink/.test(
+      n,
+    )
+  )
+    return "Food";
+  if (
+    /uber|taxi|bus|metro|train|fuel|gas|petrol|transport|car|parking|ride/.test(
+      n,
+    )
+  )
+    return "Transportation";
+  if (
+    /netflix|spotify|game|movie|cinema|music|concert|entertainment|subscription/.test(
+      n,
+    )
+  )
+    return "Entertainment";
+  if (/doctor|pharmacy|medicine|health|hospital|clinic|gym|fitness/.test(n))
+    return "Health";
+  if (/shop|mall|clothes|amazon|online|store|purchase|buy/.test(n))
+    return "Shopping";
+  if (/electric|water|internet|phone|bill|utility|utilities|rent|wifi/.test(n))
+    return "Utilities";
+  return "Uncategorized";
+}
+
 export function sanitizeInput(input: string): string {
   return input
     .replace(/[<>]/g, "")
     .replace(/javascript:/gi, "")
     .replace(/on\w+\s*=/gi, "")
     .trim();
+}
+
+export function generateScheduledInstances(
+  base: Omit<ScheduledExpense, "id" | "scheduledDate">,
+  startDate: string,
+  endDate: string,
+): ScheduledExpense[] {
+  const instances: ScheduledExpense[] = [];
+  const end = new Date(endDate);
+  let current = new Date(startDate);
+
+  while (current <= end) {
+    const dateStr = current.toISOString().split("T")[0];
+    instances.push({
+      ...base,
+      id: `${base.parentId}_${dateStr}_${Math.random().toString(36).slice(2, 7)}`,
+      scheduledDate: dateStr,
+    });
+
+    if (base.frequency === "daily") {
+      current.setDate(current.getDate() + 1);
+    } else if (base.frequency === "weekly") {
+      current.setDate(current.getDate() + 7);
+    } else {
+      current.setMonth(current.getMonth() + 1);
+    }
+  }
+
+  return instances;
 }
 
 export const SEED_EXPENSES: Expense[] = [
@@ -124,32 +200,5 @@ export const SEED_EXPENSES: Expense[] = [
     notes: "New notebook",
     date: "2026-03-20",
     paymentMethod: "Debit Card",
-  },
-  {
-    id: "6",
-    amount: 9.0,
-    currency: "USD",
-    category: "Health",
-    notes: "Vitamins",
-    date: "2026-03-20",
-    paymentMethod: "Cash",
-  },
-  {
-    id: "7",
-    amount: 3.5,
-    currency: "USD",
-    category: "Food",
-    notes: "Morning coffee",
-    date: "2026-03-19",
-    paymentMethod: "Mobile Wallet",
-  },
-  {
-    id: "8",
-    amount: 15.0,
-    currency: "USD",
-    category: "Transportation",
-    notes: "Weekly metro pass",
-    date: "2026-03-19",
-    paymentMethod: "Cash",
   },
 ];

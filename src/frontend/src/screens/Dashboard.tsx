@@ -1,23 +1,29 @@
 import { Input } from "@/components/ui/input";
 import {
+  CalendarClock,
+  ChevronRight,
   Crown,
+  Download,
   LogOut,
   Moon,
   Pencil,
   Plus,
   RefreshCw,
   Search,
+  Settings,
   Sun,
   X,
 } from "lucide-react";
 import { useState } from "react";
 import type { BudgetData } from "../App";
-import type { Expense } from "../types/expense";
+import { useInstallPrompt } from "../hooks/useInstallPrompt";
+import type { Expense, ScheduledExpense } from "../types/expense";
 import { PAYMENT_METHOD_ICONS, getCategoryIcon } from "../types/expense";
 import { type Currency, getCurrencySymbol } from "../utils/currency";
 
 interface DashboardProps {
   expenses: Expense[];
+  scheduledExpenses: ScheduledExpense[];
   budget: BudgetData | null;
   isVIP: boolean;
   onAddExpense: () => void;
@@ -28,6 +34,8 @@ interface DashboardProps {
   onToggleDark?: () => void;
   currency: Currency;
   currentUser: string | null;
+  onOpenSettings: () => void;
+  onOpenUpcoming: () => void;
 }
 
 function ProgressRing({
@@ -89,6 +97,7 @@ function ProgressRing({
 
 export default function Dashboard({
   expenses,
+  scheduledExpenses,
   budget,
   isVIP,
   onAddExpense,
@@ -99,10 +108,20 @@ export default function Dashboard({
   onToggleDark,
   currency,
   currentUser,
+  onOpenSettings,
+  onOpenUpcoming,
 }: DashboardProps) {
   const [search, setSearch] = useState("");
+  const {
+    showBanner: showInstallBanner,
+    install,
+    dismiss: dismissInstall,
+  } = useInstallPrompt();
 
   const today = new Date().toISOString().split("T")[0];
+  const weekFromNow = new Date();
+  weekFromNow.setDate(weekFromNow.getDate() + 7);
+  const weekFromNowStr = weekFromNow.toISOString().split("T")[0];
 
   const [reminderDismissed, setReminderDismissed] = useState(() => {
     if (!currentUser) return true;
@@ -122,9 +141,21 @@ export default function Dashboard({
   };
 
   const totalBudget = budget?.amount ?? 0;
-  const spent = expenses.reduce((s, e) => s + e.amount, 0);
+  // Smart deduction: only count expenses with date <= today
+  const spent = expenses
+    .filter((e) => e.date <= today)
+    .reduce((s, e) => s + e.amount, 0);
   const remaining = totalBudget - spent;
   const sym = getCurrencySymbol(currency);
+
+  // Due This Week: scheduled expenses in (today, weekFromNow] that are not cancelled
+  const dueThisWeek = scheduledExpenses.filter(
+    (s) =>
+      !s.cancelled &&
+      s.scheduledDate > today &&
+      s.scheduledDate <= weekFromNowStr,
+  );
+  const dueThisWeekTotal = dueThisWeek.reduce((s, e) => s + e.amount, 0);
 
   const filteredExpenses =
     search.trim() === ""
@@ -149,17 +180,14 @@ export default function Dashboard({
         ) : (
           <button
             type="button"
-            data-ocid="dashboard.upgrade.button"
             onClick={onUpgrade}
             className="text-xs font-semibold text-emerald border border-emerald/30 px-3 py-1.5 rounded-full hover:bg-emerald/5 transition-colors"
           >
             Go VIP ✨
           </button>
         )}
-        {/* Dark mode toggle */}
         <button
           type="button"
-          data-ocid="dashboard.dark_mode.toggle"
           onClick={onToggleDark}
           title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border hover:border-border/60 px-2.5 py-1.5 rounded-full transition-colors"
@@ -168,7 +196,14 @@ export default function Dashboard({
         </button>
         <button
           type="button"
-          data-ocid="dashboard.logout.button"
+          onClick={onOpenSettings}
+          title="Settings"
+          className="flex items-center text-xs text-muted-foreground hover:text-foreground border border-border hover:border-border/60 px-2.5 py-1.5 rounded-full transition-colors"
+        >
+          <Settings size={13} />
+        </button>
+        <button
+          type="button"
           onClick={onLogout}
           title="Log Out"
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border hover:border-border/60 px-2.5 py-1.5 rounded-full transition-colors"
@@ -177,10 +212,60 @@ export default function Dashboard({
         </button>
       </div>
 
+      {/* PWA Install Banner */}
+      {showInstallBanner && (
+        <div
+          className="flex items-center gap-3 rounded-2xl px-4 py-3"
+          style={{
+            background: "rgba(220, 38, 38, 0.08)",
+            border: "1px solid rgba(220, 38, 38, 0.25)",
+          }}
+        >
+          <span
+            className="flex-shrink-0 flex items-center justify-center rounded-xl"
+            style={{
+              width: 34,
+              height: 34,
+              background: "rgba(220, 38, 38, 0.12)",
+            }}
+          >
+            <Download size={16} color="#dc2626" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <p
+              className="text-xs font-bold leading-tight"
+              style={{ color: "#f87171" }}
+            >
+              Add WIZ to Home Screen
+            </p>
+            <p
+              className="text-xs mt-0.5"
+              style={{ color: "rgba(248,113,113,0.7)" }}
+            >
+              Use offline, anytime — no browser needed.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={install}
+            className="flex-shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl"
+            style={{ background: "#dc2626", color: "#ffffff" }}
+          >
+            Install
+          </button>
+          <button
+            type="button"
+            onClick={dismissInstall}
+            style={{ color: "#dc2626" }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Daily Reminder Banner */}
       {showReminder && (
         <div
-          data-ocid="dashboard.reminder.card"
           className="flex items-center gap-3 rounded-2xl px-4 py-3"
           style={{
             background: "rgba(245, 158, 11, 0.08)",
@@ -196,10 +281,7 @@ export default function Dashboard({
           </p>
           <button
             type="button"
-            data-ocid="dashboard.reminder.close_button"
             onClick={handleDismissReminder}
-            aria-label="Dismiss reminder"
-            className="flex-shrink-0 hover:opacity-70 transition-opacity"
             style={{ color: "#f59e0b" }}
           >
             <X size={15} />
@@ -230,9 +312,7 @@ export default function Dashboard({
               Remaining
             </p>
             <p
-              className={`text-lg font-bold ${
-                remaining < 0 ? "text-destructive" : "text-emerald"
-              }`}
+              className={`text-lg font-bold ${remaining < 0 ? "text-destructive" : "text-emerald"}`}
             >
               {sym}
               {Math.abs(remaining).toFixed(0)}
@@ -242,10 +322,47 @@ export default function Dashboard({
         </div>
       </div>
 
+      {/* Due This Week Card */}
+      {dueThisWeek.length > 0 && (
+        <button
+          type="button"
+          onClick={onOpenUpcoming}
+          className="w-full text-left rounded-2xl px-4 py-3.5 flex items-center gap-3 transition-all active:scale-[0.98]"
+          style={{
+            background: "rgba(99, 102, 241, 0.07)",
+            border: "1px solid rgba(99, 102, 241, 0.22)",
+          }}
+        >
+          <span
+            className="flex-shrink-0 flex items-center justify-center rounded-xl"
+            style={{
+              width: 36,
+              height: 36,
+              background: "rgba(99, 102, 241, 0.12)",
+            }}
+          >
+            <CalendarClock size={17} color="#818cf8" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold" style={{ color: "#818cf8" }}>
+              Due This Week
+            </p>
+            <p
+              className="text-[11px] mt-0.5"
+              style={{ color: "rgba(129,140,248,0.7)" }}
+            >
+              {dueThisWeek.length} expense{dueThisWeek.length !== 1 ? "s" : ""}{" "}
+              · {sym}
+              {dueThisWeekTotal.toFixed(2)} upcoming
+            </p>
+          </div>
+          <ChevronRight size={15} color="#818cf8" className="opacity-60" />
+        </button>
+      )}
+
       {/* Edit Budget Button */}
       <button
         type="button"
-        data-ocid="dashboard.edit_budget.button"
         onClick={onEditBudget}
         className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full text-xs font-semibold text-muted-foreground hover:text-foreground border border-border hover:border-border/60 transition-colors"
       >
@@ -265,7 +382,7 @@ export default function Dashboard({
       </button>
 
       {/* Search Bar */}
-      <div className="relative" data-ocid="dashboard.search_input">
+      <div className="relative">
         <Search
           size={15}
           className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
@@ -293,18 +410,14 @@ export default function Dashboard({
           {search ? `Results for "${search}"` : "Recent Expenses"}
         </h2>
         {filteredExpenses.length === 0 ? (
-          <p
-            data-ocid="expenses.empty_state"
-            className="text-center text-muted-foreground text-sm py-4"
-          >
+          <p className="text-center text-muted-foreground text-sm py-4">
             {search ? "No matching expenses" : "No expenses yet"}
           </p>
         ) : (
-          <ul className="flex flex-col gap-2" data-ocid="expenses.list">
-            {filteredExpenses.map((exp, i) => (
+          <ul className="flex flex-col gap-2">
+            {filteredExpenses.map((exp, _i) => (
               <li
                 key={exp.id}
-                data-ocid={`expenses.item.${i + 1}`}
                 className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-background transition-colors"
               >
                 <span className="text-xl w-8 h-8 flex items-center justify-center bg-background rounded-xl">
@@ -317,15 +430,12 @@ export default function Dashboard({
                       <RefreshCw
                         size={10}
                         className="text-emerald flex-shrink-0"
-                        aria-label="Recurring"
                       />
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     {exp.paymentMethod && (
-                      <span title={exp.paymentMethod}>
-                        {PAYMENT_METHOD_ICONS[exp.paymentMethod]}
-                      </span>
+                      <span>{PAYMENT_METHOD_ICONS[exp.paymentMethod]}</span>
                     )}
                     {exp.notes || exp.date}
                   </p>
@@ -342,10 +452,7 @@ export default function Dashboard({
 
       {/* VIP Upgrade Banner */}
       {!isVIP && (
-        <div
-          data-ocid="dashboard.vip_banner.card"
-          className="vip-banner-gradient rounded-3xl p-5 flex flex-col gap-3"
-        >
+        <div className="vip-banner-gradient rounded-3xl p-5 flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <span className="text-2xl">👑</span>
             <div>
@@ -359,7 +466,6 @@ export default function Dashboard({
           </div>
           <button
             type="button"
-            data-ocid="dashboard.vip_upgrade.button"
             onClick={onUpgrade}
             className="w-full bg-white text-emerald-dark font-bold text-sm py-3 rounded-xl hover:bg-white/90 active:scale-[0.98] transition-all"
           >
@@ -368,7 +474,6 @@ export default function Dashboard({
         </div>
       )}
 
-      {/* Footer */}
       <footer className="text-center pb-2">
         <p className="text-xs text-muted-foreground">
           © {new Date().getFullYear()}. Built with ❤️ using{" "}

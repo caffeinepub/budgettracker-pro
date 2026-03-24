@@ -9,17 +9,24 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, CalendarRange, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import DurationSelector, {
   type DurationValue,
 } from "../components/DurationSelector";
-import type { Currency, Expense, PaymentMethod } from "../types/expense";
+import type {
+  Currency,
+  Expense,
+  PaymentMethod,
+  RecurringFrequency,
+  ScheduledExpense,
+} from "../types/expense";
 import {
   CATEGORY_ICONS,
   PAYMENT_METHODS,
   PAYMENT_METHOD_ICONS,
+  generateScheduledInstances,
   getCategoryIcon,
   sanitizeInput,
 } from "../types/expense";
@@ -45,8 +52,14 @@ const CURRENCY_SYMBOLS: Record<Currency, string> = {
   AED: "د.إ",
 };
 
+const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+];
+
 interface AddExpenseProps {
-  onSave: (expense: Expense) => void;
+  onSave: (expense: Expense, scheduledInstances?: ScheduledExpense[]) => void;
   onCancel: () => void;
   isVIP?: boolean;
   onUpgrade?: () => void;
@@ -78,6 +91,8 @@ export default function AddExpense({
   onUpgrade,
   currentUser,
 }: AddExpenseProps) {
+  const today = new Date().toISOString().split("T")[0];
+
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<Currency>("USD");
   const [category, setCategory] = useState<string | null>(null);
@@ -86,10 +101,19 @@ export default function AddExpense({
     getCustomCategories(currentUser),
   );
   const [notes, setNotes] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(today);
   const [duration, setDuration] = useState<DurationValue | null>(null);
-  const [recurring, setRecurring] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Cash");
+
+  // Recurring/Fixed expense state
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [frequency, setFrequency] = useState<RecurringFrequency>("monthly");
+  const [recurringStart, setRecurringStart] = useState(today);
+  const [recurringEnd, setRecurringEnd] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 3);
+    return d.toISOString().split("T")[0];
+  });
 
   const allCategories = [
     ...DEFAULT_CATEGORIES,
@@ -99,6 +123,24 @@ export default function AddExpense({
   const selectedCategory = customCategoryInput.trim()
     ? customCategoryInput.trim()
     : category;
+
+  // Preview: count of scheduled instances
+  const previewInstances = (() => {
+    if (!isRecurring || !recurringStart || !recurringEnd) return 0;
+    if (recurringEnd < recurringStart) return 0;
+    // Rough count
+    const start = new Date(recurringStart);
+    const end = new Date(recurringEnd);
+    const diffDays = Math.round(
+      (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    if (frequency === "daily") return diffDays + 1;
+    if (frequency === "weekly") return Math.floor(diffDays / 7) + 1;
+    const months =
+      (end.getFullYear() - start.getFullYear()) * 12 +
+      (end.getMonth() - start.getMonth());
+    return months + 1;
+  })();
 
   const handlePresetClick = (cat: string) => {
     setCategory(cat);
@@ -127,12 +169,15 @@ export default function AddExpense({
       toast.error("Please select a category");
       return;
     }
+    if (isRecurring && recurringEnd < recurringStart) {
+      toast.error("End date must be after start date");
+      return;
+    }
 
     const sanitizedNotes = sanitizeInput(notes);
     const sanitizedCustomCat = sanitizeInput(customCategoryInput);
     const finalCategory = sanitizedCustomCat || category || "";
 
-    // Save custom category to storage if it's new
     if (
       sanitizedCustomCat &&
       !DEFAULT_CATEGORIES.includes(sanitizedCustomCat) &&
@@ -144,22 +189,66 @@ export default function AddExpense({
       saveCustomCategories(currentUser, updated);
     }
 
-    const expense: Expense = {
-      id: Date.now().toString(),
-      amount: Number(amount),
-      currency,
-      category: finalCategory,
-      notes: sanitizedNotes,
-      date,
-      recurring,
-      paymentMethod,
-    };
-    onSave(expense);
-    toast.success("Expense saved!");
+    if (isRecurring) {
+      // Generate all scheduled instances
+      const parentId = `parent_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const base: Omit<ScheduledExpense, "id" | "scheduledDate"> = {
+        parentId,
+        amount: Number(amount),
+        currency,
+        category: finalCategory,
+        notes: sanitizedNotes,
+        frequency,
+        paymentMethod,
+      };
+      const instances = generateScheduledInstances(
+        base,
+        recurringStart,
+        recurringEnd,
+      );
+
+      // The "anchor" expense for today (or the start date if it's today/past)
+      const anchorDate =
+        recurringStart <= today ? recurringStart : recurringStart;
+      const anchorExpense: Expense = {
+        id: `${parentId}_anchor`,
+        amount: Number(amount),
+        currency,
+        category: finalCategory,
+        notes: sanitizedNotes,
+        date: anchorDate,
+        recurring: true,
+        paymentMethod,
+        scheduledParentId: parentId,
+      };
+
+      // Future instances only (date > today)
+      const futureInstances = instances.filter((s) => s.scheduledDate > today);
+
+      onSave(anchorExpense, futureInstances);
+      toast.success(
+        `Recurring expense set! ${futureInstances.length} future instance${
+          futureInstances.length !== 1 ? "s" : ""
+        } scheduled.`,
+      );
+    } else {
+      const expense: Expense = {
+        id: Date.now().toString(),
+        amount: Number(amount),
+        currency,
+        category: finalCategory,
+        notes: sanitizedNotes,
+        date,
+        recurring: false,
+        paymentMethod,
+      };
+      onSave(expense);
+      toast.success("Expense saved!");
+    }
   };
 
   const numAmount = Number(amount);
-  const showProrated = numAmount > 0 && duration !== null;
+  const showProrated = numAmount > 0 && duration !== null && !isRecurring;
   const days = duration?.days ?? 1;
   const dailyLimit = numAmount / days;
   const weeklyLimit = dailyLimit * 7;
@@ -215,7 +304,7 @@ export default function AddExpense({
             placeholder="0.00"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="flex-1 text-3xl font-bold text-center h-14 rounded-xl border-border"
+            className="flex-1 text-3xl font-bold text-center h-14 rounded-xl border-border text-foreground"
           />
         </div>
       </div>
@@ -233,7 +322,6 @@ export default function AddExpense({
             <button
               type="button"
               key={cat}
-              data-ocid={`add_expense.category.${cat.toLowerCase().replace(/[^a-z0-9]/g, "_")}.toggle`}
               onClick={() => handlePresetClick(cat)}
               className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
                 !customCategoryInput.trim() && category === cat
@@ -246,15 +334,12 @@ export default function AddExpense({
             </button>
           ))}
         </div>
-
-        {/* Custom category input */}
         <div className="mt-3 flex items-center gap-2">
           <div className="relative flex-1">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
               📌
             </span>
             <Input
-              data-ocid="add_expense.custom_category.input"
               placeholder="Or type a custom category…"
               value={customCategoryInput}
               onChange={(e) => {
@@ -266,11 +351,9 @@ export default function AddExpense({
           </div>
           <button
             type="button"
-            data-ocid="add_expense.add_custom_category.button"
             onClick={handleAddCustomCategory}
             disabled={!customCategoryInput.trim()}
             className="flex items-center justify-center w-9 h-9 rounded-xl bg-emerald/10 text-emerald hover:bg-emerald/20 disabled:opacity-40 transition-colors flex-shrink-0"
-            title="Save custom category"
           >
             <Plus size={16} />
           </button>
@@ -283,10 +366,7 @@ export default function AddExpense({
       </div>
 
       {/* Payment Method */}
-      <div
-        className="bg-card rounded-3xl shadow-card p-5 flex flex-col gap-3"
-        data-ocid="add_expense.payment_method.section"
-      >
+      <div className="bg-card rounded-3xl shadow-card p-5 flex flex-col gap-3">
         <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
           Payment Method
         </Label>
@@ -295,7 +375,6 @@ export default function AddExpense({
             <button
               type="button"
               key={method}
-              data-ocid={`add_expense.payment.${method.toLowerCase().replace(/[^a-z0-9]/g, "_")}.toggle`}
               onClick={() => setPaymentMethod(method)}
               className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
                 paymentMethod === method
@@ -312,15 +391,10 @@ export default function AddExpense({
 
       {/* Notes */}
       <div className="bg-card rounded-3xl shadow-card p-5 flex flex-col gap-3">
-        <Label
-          htmlFor="notes"
-          className="text-xs font-semibold text-muted-foreground uppercase tracking-widest"
-        >
+        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
           Notes (optional)
         </Label>
         <Textarea
-          id="notes"
-          data-ocid="add_expense.notes.textarea"
           placeholder="What did you spend on?"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -329,49 +403,146 @@ export default function AddExpense({
         />
       </div>
 
-      {/* Date */}
-      <div className="bg-card rounded-3xl shadow-card p-5 flex flex-col gap-3">
-        <Label
-          htmlFor="date"
-          className="text-xs font-semibold text-muted-foreground uppercase tracking-widest"
-        >
-          Date
-        </Label>
-        <Input
-          id="date"
-          data-ocid="add_expense.date.input"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-xl border-border"
-        />
+      {/* Fixed/Recurring Toggle */}
+      <div className="bg-card rounded-3xl shadow-card p-5 flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <RefreshCw size={16} className="text-emerald flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Fixed / Recurring Expense
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Schedule automatic future deductions
+              </p>
+            </div>
+          </div>
+          <Switch
+            data-ocid="add_expense.recurring.switch"
+            checked={isRecurring}
+            onCheckedChange={setIsRecurring}
+          />
+        </div>
+
+        {isRecurring && (
+          <div className="flex flex-col gap-4 pt-2 border-t border-border">
+            {/* Frequency */}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+                Frequency
+              </Label>
+              <div className="flex gap-2">
+                {FREQUENCY_OPTIONS.map((opt) => (
+                  <button
+                    type="button"
+                    key={opt.value}
+                    onClick={() => setFrequency(opt.value)}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${
+                      frequency === opt.value
+                        ? "bg-emerald text-white border-emerald"
+                        : "bg-background text-body border-border hover:border-emerald/40"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Date Range */}
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                <CalendarRange size={11} /> Date Range
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    Start Date
+                  </span>
+                  <Input
+                    type="date"
+                    value={recurringStart}
+                    onChange={(e) => setRecurringStart(e.target.value)}
+                    className="rounded-xl border-border text-sm"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    End Date
+                  </span>
+                  <Input
+                    type="date"
+                    value={recurringEnd}
+                    min={recurringStart}
+                    onChange={(e) => setRecurringEnd(e.target.value)}
+                    className="rounded-xl border-border text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Preview count */}
+            {previewInstances > 0 && Number(amount) > 0 && (
+              <div
+                className="rounded-xl px-4 py-3 flex items-center justify-between"
+                style={{
+                  background: "rgba(16,185,129,0.07)",
+                  border: "1px solid rgba(16,185,129,0.2)",
+                }}
+              >
+                <div>
+                  <p className="text-xs font-bold text-emerald">
+                    {previewInstances} payment
+                    {previewInstances !== 1 ? "s" : ""} will be scheduled
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    Total: {CURRENCY_SYMBOLS[currency]}
+                    {(Number(amount) * previewInstances).toFixed(2)}
+                  </p>
+                </div>
+                <RefreshCw size={16} className="text-emerald opacity-60" />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Date (only for non-recurring) */}
+        {!isRecurring && (
+          <div className="flex flex-col gap-1.5 pt-2 border-t border-border">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+              Date
+            </Label>
+            <Input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="rounded-xl border-border"
+            />
+          </div>
+        )}
       </div>
 
-      {/* Budget Duration */}
-      <div
-        className="bg-card rounded-3xl shadow-card p-5 flex flex-col gap-3"
-        data-ocid="add_expense.duration.section"
-      >
-        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-          Budget Duration
-        </Label>
-        <p className="text-xs text-muted-foreground">
-          Set how long this budget applies. Free users: up to 1 month.
-        </p>
-        <DurationSelector
-          isVIP={isVIP}
-          value={duration}
-          onChange={setDuration}
-          onUpgradeRequest={() => onUpgrade?.()}
-        />
-      </div>
+      {/* Budget Duration (non-recurring only) */}
+      {!isRecurring && (
+        <div className="bg-card rounded-3xl shadow-card p-5 flex flex-col gap-3">
+          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+            Budget Duration
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Set how long this budget applies. Free users: up to 1 month.
+          </p>
+          <DurationSelector
+            isVIP={isVIP}
+            value={duration}
+            onChange={setDuration}
+            onUpgradeRequest={() => onUpgrade?.()}
+          />
+        </div>
+      )}
 
       {/* Pro-rated breakdown */}
       {showProrated && (
-        <div
-          className="bg-card rounded-3xl shadow-card p-5 flex flex-col gap-3"
-          data-ocid="add_expense.prorated.card"
-        >
+        <div className="bg-card rounded-3xl shadow-card p-5 flex flex-col gap-3">
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
             Pro-Rated Spending Limits
           </Label>
@@ -398,25 +569,6 @@ export default function AddExpense({
         </div>
       )}
 
-      {/* Recurring toggle */}
-      <div className="bg-card rounded-3xl shadow-card p-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-foreground">
-              Recurring monthly expense
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Auto-deduct this amount every month
-            </p>
-          </div>
-          <Switch
-            data-ocid="add_expense.recurring.switch"
-            checked={recurring}
-            onCheckedChange={setRecurring}
-          />
-        </div>
-      </div>
-
       {/* Submit */}
       <button
         type="button"
@@ -424,7 +576,7 @@ export default function AddExpense({
         onClick={handleSubmit}
         className="w-full bg-emerald text-white font-bold py-4 rounded-2xl shadow-emerald hover:bg-emerald-dark active:scale-[0.98] transition-all"
       >
-        Save Expense
+        {isRecurring ? "Schedule Recurring Expense" : "Save Expense"}
       </button>
     </div>
   );
