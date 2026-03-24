@@ -284,13 +284,17 @@ export default function AddExpense({
             >
               <SelectTrigger
                 data-ocid="add_expense.currency.select"
-                className="rounded-xl font-bold"
+                className="rounded-xl font-bold text-zinc-900 dark:text-zinc-100"
               >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="dark:bg-zinc-900 dark:text-zinc-100">
                 {CURRENCIES.map((c) => (
-                  <SelectItem key={c} value={c}>
+                  <SelectItem
+                    key={c}
+                    value={c}
+                    className="dark:text-zinc-100 dark:focus:bg-zinc-800"
+                  >
                     {c}
                   </SelectItem>
                 ))}
