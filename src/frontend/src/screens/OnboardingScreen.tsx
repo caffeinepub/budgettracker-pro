@@ -1,7 +1,6 @@
-import { GraduationCap, User } from "lucide-react";
+import { User } from "lucide-react";
 import { useRef, useState } from "react";
-import type { Currency } from "../utils/currency";
-import { type Lang, setLanguage, useLanguage } from "../utils/i18n";
+import { type Lang, setLanguage } from "../utils/i18n";
 import { requestNotificationPermission } from "../utils/notifications";
 
 interface OnboardingScreenProps {
@@ -15,7 +14,7 @@ const FONT_STYLE = {
 function StepDots({ step }: { step: number }) {
   return (
     <div className="flex items-center justify-center gap-2 mb-6">
-      {[0, 1, 2].map((i) => (
+      {[0, 1].map((i) => (
         <div
           key={i}
           style={{
@@ -40,15 +39,8 @@ export default function OnboardingScreen({
   const [localLang, setLocalLang] = useState<Lang>(
     () => (localStorage.getItem("wiz_language") as Lang) || "en",
   );
-  const [role, setRole] = useState<"student" | "employee" | null>(null);
-  const [budgetAmount, setBudgetAmount] = useState("");
-  const [budgetCurrency, setBudgetCurrency] = useState<Currency>("USD");
-  const [budgetDuration, setBudgetDuration] = useState<
-    "Daily" | "Weekly" | "Monthly" | "Yearly"
-  >("Monthly");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // re-derive t whenever localLang changes
   const { t } = (() => {
     const lang = localLang;
     const translations = {
@@ -66,12 +58,6 @@ export default function OnboardingScreen({
           "Allow notifications to get daily reminders to log your expenses.",
         onboarding_notif_allow: "Allow Notifications",
         onboarding_notif_skip: "Skip for Now",
-        onboarding_role_title: "Tell us about yourself",
-        onboarding_role_student: "Student",
-        onboarding_role_student_sub: "Manage allowance & studies.",
-        onboarding_role_employee: "Graduate / Employee",
-        onboarding_role_employee_sub: "Manage salary & investments.",
-        onboarding_budget_label: "Set Your Budget",
         onboarding_enter: "Enter My Zone",
       },
       ar: {
@@ -88,12 +74,6 @@ export default function OnboardingScreen({
           "اسمح بالإشعارات لتصلك تذكيرات يومية لتسجيل مصاريفك.",
         onboarding_notif_allow: "السماح بالإشعارات",
         onboarding_notif_skip: "تخطي الآن",
-        onboarding_role_title: "عرفنا عليك أكتر...",
-        onboarding_role_student: "أنا طالب",
-        onboarding_role_student_sub: "إدارة المصروف ودراستك.",
-        onboarding_role_employee: "أنا خريج/موظف",
-        onboarding_role_employee_sub: "إدارة الراتب والاستثمار.",
-        onboarding_budget_label: "حدد ميزانيتك",
         onboarding_enter: "دخول منطقتي",
       },
     };
@@ -122,19 +102,7 @@ export default function OnboardingScreen({
     const finalName = name.trim() || "Chief";
     localStorage.setItem("wiz_user_name", finalName);
     if (avatar) localStorage.setItem("wiz_user_avatar", avatar);
-    localStorage.setItem("wiz_user_role", role ?? "employee");
     localStorage.setItem("wiz_session", finalName);
-    if (budgetAmount && Number(budgetAmount) > 0) {
-      const durationDaysMap = { Daily: 1, Weekly: 7, Monthly: 30, Yearly: 365 };
-      const budget = {
-        amount: Number(budgetAmount),
-        durationLabel: budgetDuration,
-        durationDays: durationDaysMap[budgetDuration],
-        currency: budgetCurrency,
-      };
-      localStorage.setItem(`wiz_budget_${finalName}`, JSON.stringify(budget));
-      localStorage.setItem("wiz_currency", budgetCurrency);
-    }
     onComplete(finalName);
   };
 
@@ -147,20 +115,6 @@ export default function OnboardingScreen({
     fontSize: 15,
     outline: "none",
     width: "100%",
-    ...FONT_STYLE,
-  };
-
-  const dropdownStyle = {
-    background: "#1a1a1a",
-    border: "1px solid #2a2a2a",
-    color: "#fff",
-    borderRadius: 14,
-    padding: "0 10px",
-    fontSize: 13,
-    outline: "none",
-    cursor: "pointer",
-    flexShrink: 0,
-    width: 90,
     ...FONT_STYLE,
   };
 
@@ -360,7 +314,9 @@ export default function OnboardingScreen({
                       localLang === opt.lang
                         ? "rgba(220,38,38,0.12)"
                         : "#1a1a1a",
-                    border: `2px solid ${localLang === opt.lang ? "#dc2626" : "#2a2a2a"}`,
+                    border: `2px solid ${
+                      localLang === opt.lang ? "#dc2626" : "#2a2a2a"
+                    }`,
                     borderRadius: 16,
                     padding: "20px 12px",
                     cursor: "pointer",
@@ -465,184 +421,6 @@ export default function OnboardingScreen({
               >
                 {t("onboarding_notif_skip")}
               </button>
-            </div>
-
-            <button
-              type="button"
-              data-ocid="onboarding.next2.button"
-              onClick={() => setStep(2)}
-              style={{
-                width: "100%",
-                background: "#dc2626",
-                color: "#fff",
-                border: "none",
-                borderRadius: 16,
-                padding: "16px",
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: "pointer",
-                ...FONT_STYLE,
-              }}
-            >
-              {t("onboarding_next")}
-            </button>
-          </div>
-        )}
-
-        {/* Step 2: Role + Budget */}
-        {step === 2 && (
-          <div className="w-full flex flex-col gap-5 animate-fade-in">
-            <div className="text-center">
-              <h1
-                style={{
-                  color: "#fff",
-                  fontSize: 22,
-                  fontWeight: 800,
-                  ...FONT_STYLE,
-                }}
-              >
-                {t("onboarding_role_title")}
-              </h1>
-            </div>
-
-            {/* Role Cards */}
-            <div className="flex gap-3">
-              {[
-                {
-                  val: "student" as const,
-                  icon: (
-                    <GraduationCap
-                      size={28}
-                      color={role === "student" ? "#dc2626" : "#6b7280"}
-                    />
-                  ),
-                  label: t("onboarding_role_student"),
-                  sub: t("onboarding_role_student_sub"),
-                },
-                {
-                  val: "employee" as const,
-                  icon: <span style={{ fontSize: 28 }}>💼</span>,
-                  label: t("onboarding_role_employee"),
-                  sub: t("onboarding_role_employee_sub"),
-                },
-              ].map((opt) => (
-                <button
-                  type="button"
-                  key={opt.val}
-                  onClick={() => setRole(opt.val)}
-                  data-ocid={`onboarding.role_${opt.val}.button`}
-                  style={{
-                    flex: 1,
-                    background:
-                      role === opt.val ? "rgba(220,38,38,0.10)" : "#1a1a1a",
-                    border: `2px solid ${role === opt.val ? "#dc2626" : "#2a2a2a"}`,
-                    borderRadius: 16,
-                    padding: "18px 10px",
-                    cursor: "pointer",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 8,
-                    boxShadow:
-                      role === opt.val
-                        ? "0 0 12px rgba(220,38,38,0.25)"
-                        : "none",
-                    transition: "all 0.2s",
-                  }}
-                >
-                  {opt.icon}
-                  <span
-                    style={{
-                      color: "#fff",
-                      fontWeight: 700,
-                      fontSize: 13,
-                      ...FONT_STYLE,
-                    }}
-                  >
-                    {opt.label}
-                  </span>
-                  <span
-                    style={{
-                      color: "rgba(255,255,255,0.4)",
-                      fontSize: 11,
-                      ...FONT_STYLE,
-                      textAlign: "center",
-                    }}
-                  >
-                    {opt.sub}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {/* Budget Input */}
-            <div className="flex flex-col gap-2">
-              <label
-                htmlFor="onboarding-budget"
-                style={{
-                  color: "rgba(255,255,255,0.6)",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  ...FONT_STYLE,
-                }}
-              >
-                {t("onboarding_budget_label")}
-              </label>
-              <div style={{ display: "flex", gap: 6, alignItems: "stretch" }}>
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="0.00"
-                  value={budgetAmount}
-                  onChange={(e) => setBudgetAmount(e.target.value)}
-                  id="onboarding-budget"
-                  data-ocid="onboarding.budget.input"
-                  style={{
-                    background: "#1a1a1a",
-                    border: "1px solid #2a2a2a",
-                    color: "#fff",
-                    borderRadius: 14,
-                    padding: "14px 12px",
-                    fontSize: 15,
-                    outline: "none",
-                    flex: 1,
-                    minWidth: 0,
-                    ...FONT_STYLE,
-                  }}
-                />
-                <select
-                  value={budgetCurrency}
-                  onChange={(e) =>
-                    setBudgetCurrency(e.target.value as Currency)
-                  }
-                  data-ocid="onboarding.budget.select"
-                  style={dropdownStyle}
-                >
-                  <option value="USD">USD $</option>
-                  <option value="EGP">EGP ج.م</option>
-                  <option value="EUR">EUR €</option>
-                  <option value="SAR">SAR ر.س</option>
-                </select>
-                <select
-                  value={budgetDuration}
-                  onChange={(e) =>
-                    setBudgetDuration(
-                      e.target.value as
-                        | "Daily"
-                        | "Weekly"
-                        | "Monthly"
-                        | "Yearly",
-                    )
-                  }
-                  data-ocid="onboarding.duration.select"
-                  style={dropdownStyle}
-                >
-                  <option value="Daily">Daily</option>
-                  <option value="Weekly">Weekly</option>
-                  <option value="Monthly">Monthly</option>
-                  <option value="Yearly">Yearly</option>
-                </select>
-              </div>
             </div>
 
             <button

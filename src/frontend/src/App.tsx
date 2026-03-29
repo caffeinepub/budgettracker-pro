@@ -359,15 +359,18 @@ export default function App() {
       }, 800);
     }
 
-    // VIP backward compat: check both wiz_vip and wiz_vip_{name}
+    // VIP backward compat
     const vipStatus =
       localStorage.getItem("wiz_vip") ||
       localStorage.getItem(`wiz_vip_${name}`);
     if (vipStatus === "lifetime") setIsVIP(true);
+
+    // Load budget
+    const savedBudget = getBudget(name);
+    if (savedBudget) setBudget(savedBudget);
   };
 
   const checkAndShowWhatsNew = () => {
-    // Only check wiz_seen_version — never touch user data
     if (localStorage.getItem("wiz_seen_version") !== APP_VERSION) {
       setShowWhatsNew(true);
     }
@@ -381,7 +384,6 @@ export default function App() {
         setBudget(savedBudget);
         setAppState("main");
         checkAndShowWhatsNew();
-        // Trigger notification check
         const lang = localStorage.getItem("wiz_language") || "en";
         triggerImmediateNotificationIfNeeded(name, lang);
         scheduleDailyReminderViaSW(lang);
@@ -395,14 +397,11 @@ export default function App() {
 
   const handleOnboardingComplete = (name: string) => {
     initUser(name);
-    const savedBudget = getBudget(name);
-    if (savedBudget) {
-      setBudget(savedBudget);
-      setAppState("main");
-      checkAndShowWhatsNew();
-    } else {
-      setAppState("budget-setup");
-    }
+    setAppState("main");
+    checkAndShowWhatsNew();
+    const lang = localStorage.getItem("wiz_language") || "en";
+    triggerImmediateNotificationIfNeeded(name, lang);
+    scheduleDailyReminderViaSW(lang);
   };
 
   const handleBudgetComplete = (newBudget: BudgetData) => {
