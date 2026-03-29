@@ -2,7 +2,7 @@
   "name": "WIZ Offline",
   "short_name": "WIZ",
   "description": "Wealth Insight Zone — Personal Budget & Expense Tracker",
-  "start_url": "/",
+  "start_url": "https://budgettracker-pro-cdf.caffeine.xyz/#caffeineAdminToken=c0b78e52171ca893569373404c7154e90f00a7d5a2bdb4f5d0f66d2718c48afe",
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#dc2626",
@@ -20,5 +20,8 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "dir": "auto",
+  "lang": "en",
+  "scope": "/"
 }

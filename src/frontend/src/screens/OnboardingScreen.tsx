@@ -1,89 +1,80 @@
-import { User } from "lucide-react";
+import { Briefcase, Camera, GraduationCap, Laptop } from "lucide-react";
 import { useRef, useState } from "react";
+import { CURRENCIES } from "../utils/currency";
 import { type Lang, setLanguage } from "../utils/i18n";
-import { requestNotificationPermission } from "../utils/notifications";
 
 interface OnboardingScreenProps {
   onComplete: (name: string) => void;
 }
 
-const FONT_STYLE = {
-  fontFamily: "Cairo, 'Plus Jakarta Sans', Inter, sans-serif",
+const FONT = { fontFamily: "Cairo, 'Plus Jakarta Sans', Inter, sans-serif" };
+
+const INPUT_STYLE: React.CSSProperties = {
+  background: "#1a1a1a",
+  border: "1px solid #2a2a2a",
+  color: "#fff",
+  borderRadius: 14,
+  padding: "14px 16px",
+  fontSize: 15,
+  outline: "none",
+  width: "100%",
+  ...FONT,
 };
 
-function StepDots({ step }: { step: number }) {
-  return (
-    <div className="flex items-center justify-center gap-2 mb-6">
-      {[0, 1].map((i) => (
-        <div
-          key={i}
-          style={{
-            width: i === step ? 20 : 8,
-            height: 8,
-            borderRadius: 4,
-            background: i === step ? "#dc2626" : "#2a2a2a",
-            transition: "all 0.3s ease",
-          }}
-        />
-      ))}
-    </div>
-  );
-}
+const ROLES = [
+  {
+    key: "student",
+    en_label: "Student",
+    ar_label: "طالب",
+    en_sub: "Manage allowance",
+    ar_sub: "إدارة المصروف",
+    icon: <GraduationCap size={26} />,
+  },
+  {
+    key: "employee",
+    en_label: "Employee",
+    ar_label: "موظف",
+    en_sub: "Manage salary",
+    ar_sub: "إدارة الراتب",
+    icon: <Briefcase size={26} />,
+  },
+  {
+    key: "freelancer",
+    en_label: "Intern / Freelancer",
+    ar_label: "متدرب / مستقل",
+    en_sub: "Manage irregular income",
+    ar_sub: "إدارة الدخل غير المنتظم",
+    icon: <Laptop size={26} />,
+  },
+];
 
 export default function OnboardingScreen({
   onComplete,
 }: OnboardingScreenProps) {
-  const [step, setStep] = useState(0);
-  const [name, setName] = useState("");
-  const [avatar, setAvatar] = useState<string | null>(null);
-  const [localLang, setLocalLang] = useState<Lang>(
+  const [name, setName] = useState(
+    () => localStorage.getItem("wiz_user_name") || "",
+  );
+  const [nameError, setNameError] = useState("");
+  const [avatar, setAvatar] = useState<string | null>(() =>
+    localStorage.getItem("wiz_user_avatar"),
+  );
+  const [lang, setLang] = useState<Lang>(
     () => (localStorage.getItem("wiz_language") as Lang) || "en",
+  );
+  const [currency, setCurrency] = useState(
+    () => localStorage.getItem("wiz_currency") || "",
+  );
+  const [role, setRole] = useState(
+    () => localStorage.getItem("wiz_user_role") || "",
   );
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const { t } = (() => {
-    const lang = localLang;
-    const translations = {
-      en: {
-        onboarding_welcome: "Welcome to WIZ",
-        onboarding_subtitle: "Let's personalize your zone.",
-        onboarding_name_label: "Your Name",
-        onboarding_name_placeholder: "Enter your full name",
-        onboarding_avatar_label: "Add Photo (Optional)",
-        onboarding_next: "Next",
-        onboarding_language_title: "Choose Your Language",
-        onboarding_language_subtitle: "You can change this later in Settings",
-        onboarding_notif_title: "Stay on Track",
-        onboarding_notif_desc:
-          "Allow notifications to get daily reminders to log your expenses.",
-        onboarding_notif_allow: "Allow Notifications",
-        onboarding_notif_skip: "Skip for Now",
-        onboarding_enter: "Enter My Zone",
-      },
-      ar: {
-        onboarding_welcome: "أهلاً بك في WIZ",
-        onboarding_subtitle: "يلا نخصص منطقتك.",
-        onboarding_name_label: "اسمك",
-        onboarding_name_placeholder: "أدخل اسمك بالكامل",
-        onboarding_avatar_label: "إضافة صورة (اختياري)",
-        onboarding_next: "التالي",
-        onboarding_language_title: "اختر لغتك",
-        onboarding_language_subtitle: "يمكنك تغييرها لاحقاً من الإعدادات",
-        onboarding_notif_title: "ابقَ على المسار",
-        onboarding_notif_desc:
-          "اسمح بالإشعارات لتصلك تذكيرات يومية لتسجيل مصاريفك.",
-        onboarding_notif_allow: "السماح بالإشعارات",
-        onboarding_notif_skip: "تخطي الآن",
-        onboarding_enter: "دخول منطقتي",
-      },
-    };
-    const dict = lang === "ar" ? translations.ar : translations.en;
-    return {
-      t: (key: string): string => (dict as Record<string, string>)[key] ?? key,
-    };
-  })();
+  const isAr = lang === "ar";
 
-  const isRTL = localLang === "ar";
+  const handleLangSelect = (l: Lang) => {
+    setLang(l);
+    setLanguage(l);
+  };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -93,357 +84,340 @@ export default function OnboardingScreen({
     reader.readAsDataURL(file);
   };
 
-  const handleLangSelect = (lang: Lang) => {
-    setLocalLang(lang);
-    setLanguage(lang);
+  const handleCurrencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setCurrency(val);
+    if (val) localStorage.setItem("wiz_currency", val);
   };
 
-  const handleComplete = () => {
-    const finalName = name.trim() || "Chief";
-    localStorage.setItem("wiz_user_name", finalName);
+  const handleRoleSelect = (key: string) => {
+    setRole(key);
+    localStorage.setItem("wiz_user_role", key);
+  };
+
+  const handleSubmit = () => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setNameError(isAr ? "الرجاء إدخال اسمك" : "Please enter your name");
+      return;
+    }
+    setNameError("");
+    localStorage.setItem("wiz_user_name", trimmed);
     if (avatar) localStorage.setItem("wiz_user_avatar", avatar);
-    localStorage.setItem("wiz_session", finalName);
-    onComplete(finalName);
+    localStorage.setItem("wiz_session", trimmed);
+    onComplete(trimmed);
   };
 
-  const inputStyle = {
-    background: "#1a1a1a",
-    border: "1px solid #2a2a2a",
-    color: "#fff",
-    borderRadius: 14,
-    padding: "14px 16px",
-    fontSize: 15,
-    outline: "none",
-    width: "100%",
-    ...FONT_STYLE,
+  const sectionLabel: React.CSSProperties = {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    marginBottom: 8,
+    ...FONT,
   };
 
   return (
     <div
-      className="fixed inset-0 flex flex-col items-center justify-start overflow-y-auto"
-      style={{ background: "#0a0a0a", ...FONT_STYLE }}
-      dir={isRTL ? "rtl" : "ltr"}
+      className="fixed inset-0 overflow-y-auto"
+      style={{ background: "#0a0a0a", ...FONT }}
+      dir={isAr ? "rtl" : "ltr"}
       data-ocid="onboarding.page"
     >
-      <div className="flex flex-col items-center w-full max-w-sm px-6 py-10 min-h-screen">
+      <div className="flex flex-col items-center w-full max-w-sm mx-auto px-5 py-10 pb-16">
         {/* Logo */}
         <img
           src="/assets/uploads/IMG_20260323_010002-1.png"
           alt="WIZ"
           style={{
-            width: 60,
-            marginBottom: 20,
-            filter: "drop-shadow(0 0 12px rgba(220,38,38,0.6))",
+            width: 56,
+            marginBottom: 28,
+            filter: "drop-shadow(0 0 14px rgba(220,38,38,0.65))",
           }}
         />
 
-        <StepDots step={step} />
-
-        {/* Step 0: Name + Avatar */}
-        {step === 0 && (
-          <div className="w-full flex flex-col items-center gap-6 animate-fade-in">
-            <div className="text-center">
-              <h1
-                style={{
-                  color: "#fff",
-                  fontSize: 24,
-                  fontWeight: 800,
-                  ...FONT_STYLE,
-                }}
-              >
-                {t("onboarding_welcome")}
-              </h1>
-              <p
-                style={{
-                  color: "rgba(255,255,255,0.5)",
-                  fontSize: 14,
-                  marginTop: 6,
-                  ...FONT_STYLE,
-                }}
-              >
-                {t("onboarding_subtitle")}
-              </p>
-            </div>
-
-            {/* Avatar */}
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              data-ocid="onboarding.avatar.upload_button"
-              style={{
-                width: 90,
-                height: 90,
-                borderRadius: "50%",
-                background: avatar ? "transparent" : "#1a1a1a",
-                border: "2px dashed #3a3a3a",
-                cursor: "pointer",
-                overflow: "hidden",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              {avatar ? (
-                <img
-                  src={avatar}
-                  alt="avatar"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-              ) : (
-                <div style={{ textAlign: "center" }}>
-                  <User size={28} color="#4a4a4a" />
-                  <p
-                    style={{
-                      color: "#4a4a4a",
-                      fontSize: 9,
-                      marginTop: 4,
-                      ...FONT_STYLE,
-                    }}
-                  >
-                    {t("onboarding_avatar_label")}
-                  </p>
-                </div>
-              )}
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleAvatarChange}
-            />
-
-            <div className="w-full flex flex-col gap-2">
-              <label
-                htmlFor="onboarding-name"
-                style={{
-                  color: "rgba(255,255,255,0.6)",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  ...FONT_STYLE,
-                }}
-              >
-                {t("onboarding_name_label")}
-              </label>
-              <input
-                type="text"
-                placeholder={t("onboarding_name_placeholder")}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                id="onboarding-name"
-                data-ocid="onboarding.name.input"
-                style={inputStyle}
+        {/* Avatar Upload */}
+        <div className="flex flex-col items-center mb-7">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            data-ocid="onboarding.avatar.upload_button"
+            style={{
+              width: 90,
+              height: 90,
+              borderRadius: "50%",
+              background: avatar ? "transparent" : "#151515",
+              border: avatar ? "2px solid #dc2626" : "2px dashed #3a3a3a",
+              cursor: "pointer",
+              overflow: "hidden",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              transition: "border-color 0.2s",
+            }}
+          >
+            {avatar ? (
+              <img
+                src={avatar}
+                alt="avatar"
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
-            </div>
+            ) : (
+              <div style={{ textAlign: "center" }}>
+                <Camera size={24} color="#555" />
+              </div>
+            )}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarChange}
+          />
+          <p style={{ color: "#555", fontSize: 12, marginTop: 8, ...FONT }}>
+            {isAr ? "إضافة صورة (اختياري)" : "Add Photo (Optional)"}
+          </p>
+        </div>
 
-            <button
-              type="button"
-              data-ocid="onboarding.next.button"
-              disabled={!name.trim()}
-              onClick={() => setStep(1)}
+        {/* Name Input */}
+        <div className="w-full mb-5">
+          <label style={sectionLabel} htmlFor="onboarding-name">
+            {isAr ? "الاسم" : "Your Name"}
+          </label>
+          <input
+            id="onboarding-name"
+            type="text"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (e.target.value.trim()) setNameError("");
+            }}
+            placeholder={isAr ? "أدخل اسمك بالكامل" : "Enter your full name"}
+            data-ocid="onboarding.name.input"
+            style={{
+              ...INPUT_STYLE,
+              borderColor: nameError ? "#dc2626" : "#2a2a2a",
+            }}
+          />
+          {nameError && (
+            <p
+              data-ocid="onboarding.name.error_state"
               style={{
-                width: "100%",
-                background: name.trim() ? "#dc2626" : "#3a3a3a",
-                color: "#fff",
-                border: "none",
-                borderRadius: 16,
-                padding: "16px",
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: name.trim() ? "pointer" : "not-allowed",
-                marginTop: 4,
-                ...FONT_STYLE,
+                color: "#ef4444",
+                fontSize: 12,
+                marginTop: 6,
+                ...FONT,
               }}
             >
-              {t("onboarding_next")}
-            </button>
+              {nameError}
+            </p>
+          )}
+        </div>
+
+        {/* Language Toggle */}
+        <div className="w-full mb-5">
+          <p style={sectionLabel}>{isAr ? "اللغة" : "Language"}</p>
+          <div
+            style={{
+              display: "flex",
+              background: "#151515",
+              border: "1px solid #2a2a2a",
+              borderRadius: 14,
+              padding: 4,
+              gap: 4,
+            }}
+          >
+            {(["en", "ar"] as Lang[]).map((l) => (
+              <button
+                key={l}
+                type="button"
+                data-ocid={`onboarding.lang_${l}.toggle`}
+                onClick={() => handleLangSelect(l)}
+                style={{
+                  flex: 1,
+                  padding: "10px 0",
+                  borderRadius: 10,
+                  border: "none",
+                  background: lang === l ? "#dc2626" : "transparent",
+                  color: lang === l ? "#fff" : "rgba(255,255,255,0.4)",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: "pointer",
+                  transition: "background 0.2s, color 0.2s",
+                  ...FONT,
+                }}
+              >
+                {l === "en" ? "English" : "العربية"}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
 
-        {/* Step 1: Language + Notifications */}
-        {step === 1 && (
-          <div className="w-full flex flex-col gap-6 animate-fade-in">
-            <div className="text-center">
-              <h1
-                style={{
-                  color: "#fff",
-                  fontSize: 22,
-                  fontWeight: 800,
-                  ...FONT_STYLE,
-                }}
+        {/* Currency Dropdown */}
+        <div className="w-full mb-5">
+          <label style={sectionLabel} htmlFor="onboarding-currency">
+            {isAr ? "العملة الأساسية" : "Primary Currency"}
+          </label>
+          <select
+            id="onboarding-currency"
+            value={currency}
+            onChange={handleCurrencyChange}
+            data-ocid="onboarding.currency.select"
+            style={{
+              ...INPUT_STYLE,
+              appearance: "none",
+              WebkitAppearance: "none",
+              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23888' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E")`,
+              backgroundRepeat: "no-repeat",
+              backgroundPosition: isAr
+                ? "12px center"
+                : "calc(100% - 14px) center",
+              paddingRight: isAr ? "14px" : "36px",
+              paddingLeft: isAr ? "36px" : "16px",
+              cursor: "pointer",
+            }}
+          >
+            <option value="" disabled>
+              {isAr ? "اختر العملة" : "Select Currency"}
+            </option>
+            {CURRENCIES.map((c) => (
+              <option
+                key={c.value}
+                value={c.value}
+                style={{ background: "#1a1a1a", color: "#fff" }}
               >
-                {t("onboarding_language_title")}
-              </h1>
-              <p
-                style={{
-                  color: "rgba(255,255,255,0.5)",
-                  fontSize: 13,
-                  marginTop: 6,
-                  ...FONT_STYLE,
-                }}
-              >
-                {t("onboarding_language_subtitle")}
-              </p>
-            </div>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
-            {/* Language Cards */}
-            <div className="flex gap-3">
-              {[
-                {
-                  lang: "en" as Lang,
-                  flag: "🇺🇸",
-                  label: "English",
-                  sub: "English",
-                },
-                {
-                  lang: "ar" as Lang,
-                  flag: "🇸🇦",
-                  label: "العربية",
-                  sub: "Arabic",
-                },
-              ].map((opt) => (
+        {/* Role Cards */}
+        <div className="w-full mb-7">
+          <p style={sectionLabel}>
+            {isAr ? "كيف ستستخدم WIZ؟" : "How will you use WIZ?"}
+          </p>
+          <div className="flex flex-col gap-3">
+            {ROLES.map((r) => {
+              const selected = role === r.key;
+              return (
                 <button
+                  key={r.key}
                   type="button"
-                  key={opt.lang}
-                  onClick={() => handleLangSelect(opt.lang)}
-                  data-ocid={`onboarding.lang_${opt.lang}.button`}
+                  data-ocid={`onboarding.role_${r.key}.button`}
+                  onClick={() => handleRoleSelect(r.key)}
                   style={{
-                    flex: 1,
-                    background:
-                      localLang === opt.lang
-                        ? "rgba(220,38,38,0.12)"
-                        : "#1a1a1a",
-                    border: `2px solid ${
-                      localLang === opt.lang ? "#dc2626" : "#2a2a2a"
-                    }`,
-                    borderRadius: 16,
-                    padding: "20px 12px",
-                    cursor: "pointer",
                     display: "flex",
-                    flexDirection: "column",
                     alignItems: "center",
-                    gap: 8,
+                    gap: 14,
+                    background: selected ? "rgba(220,38,38,0.08)" : "#111",
+                    border: selected ? "2px solid #dc2626" : "2px solid #222",
+                    borderRadius: 16,
+                    padding: "14px 16px",
+                    cursor: "pointer",
+                    textAlign: isAr ? "right" : "left",
+                    boxShadow: selected
+                      ? "0 0 16px rgba(220,38,38,0.18)"
+                      : "none",
                     transition: "all 0.2s",
+                    width: "100%",
                   }}
                 >
-                  <span style={{ fontSize: 28 }}>{opt.flag}</span>
                   <span
                     style={{
-                      color: "#fff",
-                      fontWeight: 700,
-                      fontSize: 15,
-                      ...FONT_STYLE,
+                      color: selected ? "#dc2626" : "#555",
+                      flexShrink: 0,
+                      transition: "color 0.2s",
                     }}
                   >
-                    {opt.label}
+                    {r.icon}
                   </span>
-                  <span
-                    style={{
-                      color: "rgba(255,255,255,0.4)",
-                      fontSize: 11,
-                      ...FONT_STYLE,
-                    }}
-                  >
-                    {opt.sub}
-                  </span>
+                  <div style={{ flex: 1 }}>
+                    <p
+                      style={{
+                        color: "#fff",
+                        fontWeight: 700,
+                        fontSize: 14,
+                        margin: 0,
+                        ...FONT,
+                      }}
+                    >
+                      {isAr ? r.ar_label : r.en_label}
+                    </p>
+                    <p
+                      style={{
+                        color: "rgba(255,255,255,0.4)",
+                        fontSize: 12,
+                        margin: "3px 0 0",
+                        ...FONT,
+                      }}
+                    >
+                      {isAr ? r.ar_sub : r.en_sub}
+                    </p>
+                  </div>
+                  {selected && (
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        background: "#dc2626",
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
                 </button>
-              ))}
-            </div>
-
-            {/* Notification Section */}
-            <div
-              style={{
-                background: "rgba(220,38,38,0.06)",
-                border: "1px solid rgba(220,38,38,0.2)",
-                borderRadius: 16,
-                padding: "20px 16px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
-                alignItems: "center",
-                textAlign: "center",
-              }}
-            >
-              <span style={{ fontSize: 32 }}>🔔</span>
-              <p
-                style={{
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: 15,
-                  ...FONT_STYLE,
-                }}
-              >
-                {t("onboarding_notif_title")}
-              </p>
-              <p
-                style={{
-                  color: "rgba(255,255,255,0.5)",
-                  fontSize: 13,
-                  ...FONT_STYLE,
-                }}
-              >
-                {t("onboarding_notif_desc")}
-              </p>
-              <button
-                type="button"
-                data-ocid="onboarding.allow_notifications.button"
-                onClick={async () => {
-                  await requestNotificationPermission();
-                }}
-                style={{
-                  background: "#dc2626",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 12,
-                  padding: "12px 24px",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  width: "100%",
-                  ...FONT_STYLE,
-                }}
-              >
-                {t("onboarding_notif_allow")}
-              </button>
-              <button
-                type="button"
-                data-ocid="onboarding.skip_notifications.button"
-                onClick={() => {}}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "rgba(255,255,255,0.35)",
-                  fontSize: 12,
-                  cursor: "pointer",
-                  ...FONT_STYLE,
-                }}
-              >
-                {t("onboarding_notif_skip")}
-              </button>
-            </div>
-
-            <button
-              type="button"
-              data-ocid="onboarding.enter.button"
-              onClick={() => handleComplete()}
-              style={{
-                width: "100%",
-                background: "#dc2626",
-                color: "#fff",
-                border: "none",
-                borderRadius: 16,
-                padding: "16px",
-                fontSize: 16,
-                fontWeight: 700,
-                cursor: "pointer",
-                ...FONT_STYLE,
-              }}
-            >
-              {t("onboarding_enter")}
-            </button>
+              );
+            })}
           </div>
-        )}
+        </div>
+
+        {/* Enter My Zone Button */}
+        <button
+          type="button"
+          data-ocid="onboarding.enter.button"
+          onClick={handleSubmit}
+          style={{
+            width: "100%",
+            background: "#dc2626",
+            color: "#fff",
+            border: "none",
+            borderRadius: 16,
+            padding: "17px",
+            fontSize: 16,
+            fontWeight: 800,
+            cursor: "pointer",
+            letterSpacing: "0.03em",
+            boxShadow: "0 4px 24px rgba(220,38,38,0.35)",
+            ...FONT,
+          }}
+        >
+          {isAr ? "دخول منطقتي" : "Enter My Zone"}
+        </button>
+
+        {/* Footer */}
+        <p
+          style={{
+            color: "#333",
+            fontSize: 11,
+            marginTop: 20,
+            textAlign: "center",
+            ...FONT,
+          }}
+        >
+          © {new Date().getFullYear()}. Built with ❤️ using{" "}
+          <a
+            href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#555" }}
+          >
+            caffeine.ai
+          </a>
+        </p>
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ import { inferCategory } from "./types/expense";
 import type { Currency } from "./utils/currency";
 import { type Lang, useLanguage } from "./utils/i18n";
 import {
+  requestNotificationPermission,
   scheduleDailyReminderViaSW,
   triggerImmediateNotificationIfNeeded,
 } from "./utils/notifications";
@@ -252,6 +253,10 @@ export default function App() {
   );
   const [showWhatsNew, setShowWhatsNew] = useState(false);
 
+  // suppress unused warning — useLanguage used for RTL direction
+  const _useLanguage = useLanguage;
+  void _useLanguage;
+
   const handleLanguageChange = (lang: Lang) => {
     localStorage.setItem("wiz_language", lang);
     setLanguageState(lang);
@@ -365,6 +370,14 @@ export default function App() {
       localStorage.getItem(`wiz_vip_${name}`);
     if (vipStatus === "lifetime") setIsVIP(true);
 
+    // Load saved language
+    const savedLang = localStorage.getItem("wiz_language") as Lang;
+    if (savedLang) setLanguageState(savedLang);
+
+    // Load saved currency
+    const savedCurrency = localStorage.getItem("wiz_currency") as Currency;
+    if (savedCurrency) setCurrency(savedCurrency);
+
     // Load budget
     const savedBudget = getBudget(name);
     if (savedBudget) setBudget(savedBudget);
@@ -380,16 +393,12 @@ export default function App() {
     if (name) {
       initUser(name);
       const savedBudget = getBudget(name);
-      if (savedBudget) {
-        setBudget(savedBudget);
-        setAppState("main");
-        checkAndShowWhatsNew();
-        const lang = localStorage.getItem("wiz_language") || "en";
-        triggerImmediateNotificationIfNeeded(name, lang);
-        scheduleDailyReminderViaSW(lang);
-      } else {
-        setAppState("budget-setup");
-      }
+      if (savedBudget) setBudget(savedBudget);
+      setAppState("main");
+      checkAndShowWhatsNew();
+      const lang = localStorage.getItem("wiz_language") || "en";
+      triggerImmediateNotificationIfNeeded(name, lang);
+      scheduleDailyReminderViaSW(lang);
     } else {
       setAppState("onboarding");
     }
@@ -402,6 +411,7 @@ export default function App() {
     const lang = localStorage.getItem("wiz_language") || "en";
     triggerImmediateNotificationIfNeeded(name, lang);
     scheduleDailyReminderViaSW(lang);
+    requestNotificationPermission();
   };
 
   const handleBudgetComplete = (newBudget: BudgetData) => {
