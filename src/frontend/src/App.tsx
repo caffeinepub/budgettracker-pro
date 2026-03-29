@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import BottomNav from "./components/BottomNav";
 import AddExpense from "./screens/AddExpense";
-import AdminPanel from "./screens/AdminPanel";
 import Analytics from "./screens/Analytics";
 import BudgetSetup from "./screens/BudgetSetup";
 import Dashboard from "./screens/Dashboard";
@@ -16,6 +15,11 @@ import VIPUpgrade from "./screens/VIPUpgrade";
 import type { Expense, ScheduledExpense } from "./types/expense";
 import { inferCategory } from "./types/expense";
 import type { Currency } from "./utils/currency";
+import { type Lang, useLanguage } from "./utils/i18n";
+import {
+  scheduleDailyReminderViaSW,
+  triggerImmediateNotificationIfNeeded,
+} from "./utils/notifications";
 
 export type Screen =
   | "dashboard"
@@ -27,56 +31,53 @@ export type Screen =
   | "upcoming";
 type AppState = "splash" | "onboarding" | "budget-setup" | "main";
 
+const APP_VERSION = "v21";
+
 export interface BudgetData {
   amount: number;
   durationLabel: string;
   durationDays: number;
 }
 
-function getBudget(email: string): BudgetData | null {
+function getBudget(key: string): BudgetData | null {
   try {
-    const raw = localStorage.getItem(`wiz_budget_${email}`);
+    const raw = localStorage.getItem(`wiz_budget_${key}`);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
 
-function saveBudget(email: string, budget: BudgetData) {
-  localStorage.setItem(`wiz_budget_${email}`, JSON.stringify(budget));
+function saveBudget(key: string, budget: BudgetData) {
+  localStorage.setItem(`wiz_budget_${key}`, JSON.stringify(budget));
 }
 
-function loadExpenses(email: string): Expense[] {
+function loadExpenses(key: string): Expense[] {
   try {
-    const raw = localStorage.getItem(`wiz_expenses_${email}`);
+    const raw = localStorage.getItem(`wiz_expenses_${key}`);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 }
 
-function saveExpenses(email: string, expenses: Expense[]) {
-  localStorage.setItem(`wiz_expenses_${email}`, JSON.stringify(expenses));
+function saveExpenses(key: string, expenses: Expense[]) {
+  localStorage.setItem(`wiz_expenses_${key}`, JSON.stringify(expenses));
 }
 
-export function loadScheduled(email: string): ScheduledExpense[] {
+export function loadScheduled(key: string): ScheduledExpense[] {
   try {
-    const raw = localStorage.getItem(`wiz_scheduled_${email}`);
+    const raw = localStorage.getItem(`wiz_scheduled_${key}`);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 }
 
-export function saveScheduled(email: string, items: ScheduledExpense[]) {
-  localStorage.setItem(`wiz_scheduled_${email}`, JSON.stringify(items));
+export function saveScheduled(key: string, items: ScheduledExpense[]) {
+  localStorage.setItem(`wiz_scheduled_${key}`, JSON.stringify(items));
 }
 
-/**
- * Apply smart category inference: for any expense with a missing,
- * empty, or "Other" category, infer from notes and update in place.
- * Returns { updated expenses, didChange }.
- */
 function applySmartCategories(expenses: Expense[]): {
   result: Expense[];
   changed: boolean;
@@ -94,7 +95,7 @@ function applySmartCategories(expenses: Expense[]): {
 }
 
 function processScheduledExpenses(
-  email: string,
+  key: string,
   currentExpenses: Expense[],
   currentScheduled: ScheduledExpense[],
 ): {
@@ -131,14 +132,101 @@ function processScheduledExpenses(
   }));
 
   const updatedExpenses = [...newExpenses, ...currentExpenses];
-  saveExpenses(email, updatedExpenses);
-  saveScheduled(email, remaining);
+  saveExpenses(key, updatedExpenses);
+  saveScheduled(key, remaining);
 
   return {
     updatedExpenses,
     updatedScheduled: remaining,
     deductedCount: toDeduct.length,
   };
+}
+
+// What's New Modal
+function WhatsNewModal({ onClose, lang }: { onClose: () => void; lang: Lang }) {
+  const items =
+    lang === "ar"
+      ? [
+          "🌐 دعم ثنائي اللغة — عربي وإنجليزي",
+          "🔔 تذكيرات إشعارات يومية حقيقية",
+          "👤 تجربة تهيئة جديدة مبسطة",
+          "🎨 لوحة تحكم محسّنة مع صورتك الشخصية",
+        ]
+      : [
+          "🌐 Bilingual support — Arabic & English",
+          "🔔 Native push notification reminders",
+          "👤 New streamlined onboarding flow",
+          "🎨 Redesigned dashboard with your avatar",
+        ];
+  const title = lang === "ar" ? "الجديد في v21" : "What's New in v21";
+  const closeLabel = lang === "ar" ? "تم!" : "Got it!";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.75)" }}
+      dir={lang === "ar" ? "rtl" : "ltr"}
+    >
+      <div
+        className="w-full max-w-sm flex flex-col items-center"
+        style={{
+          background: "#18181b",
+          border: "1px solid #3f3f46",
+          borderRadius: 20,
+          padding: 28,
+          fontFamily: "Cairo, Plus Jakarta Sans, Inter, sans-serif",
+        }}
+        data-ocid="whats_new.modal"
+      >
+        <img
+          src="/assets/uploads/IMG_20260323_010002-1.png"
+          alt="WIZ"
+          style={{
+            width: 40,
+            filter: "drop-shadow(0 0 8px rgba(220,38,38,0.6))",
+          }}
+        />
+        <h2
+          style={{
+            color: "#fff",
+            fontWeight: 800,
+            fontSize: 18,
+            textAlign: "center",
+            marginTop: 14,
+          }}
+        >
+          {title}
+        </h2>
+        <ul className="w-full mt-4 flex flex-col gap-2.5">
+          {items.map((item) => (
+            <li key={item} style={{ color: "#d4d4d8", fontSize: 14 }}>
+              {item}
+            </li>
+          ))}
+        </ul>
+        <button
+          type="button"
+          data-ocid="whats_new.close.button"
+          onClick={onClose}
+          style={{
+            width: "100%",
+            background: "#dc2626",
+            color: "#fff",
+            border: "none",
+            borderRadius: 14,
+            padding: "14px",
+            marginTop: 22,
+            fontSize: 15,
+            fontWeight: 700,
+            cursor: "pointer",
+            fontFamily: "Cairo, Plus Jakarta Sans, Inter, sans-serif",
+          }}
+        >
+          {closeLabel}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -159,8 +247,15 @@ export default function App() {
   const [currency, setCurrency] = useState<Currency>(
     () => (localStorage.getItem("wiz_currency") as Currency) || "USD",
   );
+  const [language, setLanguageState] = useState<Lang>(
+    () => (localStorage.getItem("wiz_language") as Lang) || "en",
+  );
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
 
-  const isAdmin = currentUser?.toLowerCase() === "admin@aura.com";
+  const handleLanguageChange = (lang: Lang) => {
+    localStorage.setItem("wiz_language", lang);
+    setLanguageState(lang);
+  };
 
   const handleCurrencyChange = (c: Currency) => {
     localStorage.setItem("wiz_currency", c);
@@ -233,29 +328,22 @@ export default function App() {
     setRemindersEnabled(false);
     setAppState("onboarding");
     window.history.pushState(null, "", window.location.href);
-    window.history.pushState(null, "", window.location.href);
   };
 
-  const initUser = (email: string) => {
-    setCurrentUser(email);
-    if (email.toLowerCase() === "admin@aura.com") return;
+  const initUser = (name: string) => {
+    setCurrentUser(name);
 
-    const remindersRaw = localStorage.getItem(`wiz_reminders_${email}`);
+    const remindersRaw = localStorage.getItem(`wiz_reminders_${name}`);
     setRemindersEnabled(remindersRaw === "true");
 
-    const rawExpenses = loadExpenses(email);
-
-    // Smart category assignment for old/uncategorized expenses
+    const rawExpenses = loadExpenses(name);
     const { result: categorizedExpenses, changed } =
       applySmartCategories(rawExpenses);
-    if (changed) {
-      saveExpenses(email, categorizedExpenses);
-    }
+    if (changed) saveExpenses(name, categorizedExpenses);
 
-    const loadedScheduled = loadScheduled(email);
-
+    const loadedScheduled = loadScheduled(name);
     const { updatedExpenses, updatedScheduled, deductedCount } =
-      processScheduledExpenses(email, categorizedExpenses, loadedScheduled);
+      processScheduledExpenses(name, categorizedExpenses, loadedScheduled);
 
     setExpenses(updatedExpenses);
     setScheduledExpenses(updatedScheduled);
@@ -263,45 +351,40 @@ export default function App() {
     if (deductedCount > 0) {
       setTimeout(() => {
         toast.success(
-          `${deductedCount} scheduled expense${deductedCount > 1 ? "s were" : " was"} deducted today from your balance.`,
+          `${deductedCount} scheduled expense${
+            deductedCount > 1 ? "s were" : " was"
+          } deducted today from your balance.`,
           { duration: 5000 },
         );
       }, 800);
     }
 
-    const vipStatus = localStorage.getItem(`wiz_vip_${email}`);
+    // VIP backward compat: check both wiz_vip and wiz_vip_{name}
+    const vipStatus =
+      localStorage.getItem("wiz_vip") ||
+      localStorage.getItem(`wiz_vip_${name}`);
     if (vipStatus === "lifetime") setIsVIP(true);
+  };
 
-    const remindersEnabledNow = remindersRaw === "true";
-    if (remindersEnabledNow) {
-      const lastReminderRaw = localStorage.getItem(
-        `wiz_last_reminder_${email}`,
-      );
-      const lastReminder = lastReminderRaw ? new Date(lastReminderRaw) : null;
-      const now = new Date();
-      const hoursSinceLast = lastReminder
-        ? (now.getTime() - lastReminder.getTime()) / (1000 * 60 * 60)
-        : 999;
-      if (hoursSinceLast >= 24) {
-        setTimeout(() => {
-          toast("💰 WIZ Reminder: Log your expenses to stay on track!");
-        }, 1500);
-        localStorage.setItem(`wiz_last_reminder_${email}`, now.toISOString());
-      }
+  const checkAndShowWhatsNew = () => {
+    // Only check wiz_seen_version — never touch user data
+    if (localStorage.getItem("wiz_seen_version") !== APP_VERSION) {
+      setShowWhatsNew(true);
     }
   };
 
-  const handleSplashComplete = (email: string | null) => {
-    if (email) {
-      initUser(email);
-      if (email.toLowerCase() === "admin@aura.com") {
-        setAppState("main");
-        return;
-      }
-      const savedBudget = getBudget(email);
+  const handleSplashComplete = (name: string | null) => {
+    if (name) {
+      initUser(name);
+      const savedBudget = getBudget(name);
       if (savedBudget) {
         setBudget(savedBudget);
         setAppState("main");
+        checkAndShowWhatsNew();
+        // Trigger notification check
+        const lang = localStorage.getItem("wiz_language") || "en";
+        triggerImmediateNotificationIfNeeded(name, lang);
+        scheduleDailyReminderViaSW(lang);
       } else {
         setAppState("budget-setup");
       }
@@ -310,16 +393,13 @@ export default function App() {
     }
   };
 
-  const handleOnboardingComplete = (email: string) => {
-    initUser(email);
-    if (email.toLowerCase() === "admin@aura.com") {
-      setAppState("main");
-      return;
-    }
-    const savedBudget = getBudget(email);
+  const handleOnboardingComplete = (name: string) => {
+    initUser(name);
+    const savedBudget = getBudget(name);
     if (savedBudget) {
       setBudget(savedBudget);
       setAppState("main");
+      checkAndShowWhatsNew();
     } else {
       setAppState("budget-setup");
     }
@@ -329,6 +409,17 @@ export default function App() {
     if (currentUser) saveBudget(currentUser, newBudget);
     setBudget(newBudget);
     setAppState("main");
+    checkAndShowWhatsNew();
+    if (currentUser) {
+      const lang = localStorage.getItem("wiz_language") || "en";
+      triggerImmediateNotificationIfNeeded(currentUser, lang);
+      scheduleDailyReminderViaSW(lang);
+    }
+  };
+
+  const handleCloseWhatsNew = () => {
+    localStorage.setItem("wiz_seen_version", APP_VERSION);
+    setShowWhatsNew(false);
   };
 
   if (appState === "main" && !currentUser) {
@@ -368,15 +459,6 @@ export default function App() {
           currency={currency}
           onCurrencyChange={handleCurrencyChange}
         />
-        <Toaster position="top-center" />
-      </div>
-    );
-  }
-
-  if (isAdmin) {
-    return (
-      <div style={{ background: "#0a0a0a", minHeight: "100dvh" }}>
-        <AdminPanel onLogout={handleLogout} />
         <Toaster position="top-center" />
       </div>
     );
@@ -438,6 +520,7 @@ export default function App() {
             isVIP={isVIP}
             onUpgrade={() => {
               setIsVIP(true);
+              localStorage.setItem("wiz_vip", "lifetime");
               if (currentUser)
                 localStorage.setItem(`wiz_vip_${currentUser}`, "lifetime");
             }}
@@ -454,6 +537,8 @@ export default function App() {
             remindersEnabled={remindersEnabled}
             onToggleReminders={handleToggleReminders}
             onBack={() => setCurrentScreen("dashboard")}
+            onLanguageChange={handleLanguageChange}
+            language={language}
           />
         );
       case "upcoming":
@@ -475,6 +560,7 @@ export default function App() {
       className={`min-h-screen bg-background flex items-start justify-center${
         darkMode ? " dark" : ""
       }`}
+      dir={language === "ar" ? "rtl" : "ltr"}
     >
       <div className="w-full max-w-sm min-h-screen flex flex-col relative bg-background">
         <main className="flex-1 pb-20 overflow-y-auto">{renderScreen()}</main>
@@ -485,6 +571,9 @@ export default function App() {
           scheduledCount={scheduledExpenses.filter((s) => !s.cancelled).length}
         />
       </div>
+      {showWhatsNew && (
+        <WhatsNewModal onClose={handleCloseWhatsNew} lang={language} />
+      )}
       <Toaster position="top-center" />
     </div>
   );

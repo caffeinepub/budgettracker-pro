@@ -7,6 +7,7 @@ import {
   Star,
 } from "lucide-react";
 import type { Screen } from "../App";
+import { useLanguage } from "../utils/i18n";
 
 interface BottomNavProps {
   current: Screen;
@@ -15,25 +16,27 @@ interface BottomNavProps {
   scheduledCount?: number;
 }
 
-const tabs: {
-  id: Screen;
-  label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-}[] = [
-  { id: "dashboard", label: "Home", icon: Home },
-  { id: "add", label: "Add", icon: PlusCircle },
-  { id: "upcoming", label: "Upcoming", icon: CalendarClock },
-  { id: "analytics", label: "Stats", icon: BarChart2 },
-  { id: "cards", label: "Cards", icon: CreditCard },
-  { id: "vip", label: "VIP", icon: Star },
-];
-
 export default function BottomNav({
   current,
   isVIP,
   onChange,
   scheduledCount = 0,
 }: BottomNavProps) {
+  const { t } = useLanguage();
+
+  const tabs: {
+    id: Screen;
+    labelKey: string;
+    icon: React.ComponentType<{ size?: number; className?: string }>;
+  }[] = [
+    { id: "dashboard", labelKey: "nav_home", icon: Home },
+    { id: "add", labelKey: "nav_add", icon: PlusCircle },
+    { id: "upcoming", labelKey: "nav_upcoming", icon: CalendarClock },
+    { id: "analytics", labelKey: "nav_analytics", icon: BarChart2 },
+    { id: "cards", labelKey: "cards_title", icon: CreditCard },
+    { id: "vip", labelKey: "vip_title", icon: Star },
+  ];
+
   return (
     <nav
       data-ocid="bottom_nav"
@@ -51,6 +54,7 @@ export default function BottomNav({
             <button
               type="button"
               key={tab.id}
+              data-ocid={`nav.${tab.id}.link`}
               onClick={() => onChange(tab.id)}
               className={`flex flex-col items-center gap-0.5 flex-1 py-2 rounded-xl transition-all ${
                 isActive
@@ -90,7 +94,7 @@ export default function BottomNav({
                       : ""
                 }`}
               >
-                {tab.label}
+                {t(tab.labelKey as Parameters<typeof t>[0])}
               </span>
               {isActive && (
                 <div className="absolute bottom-0 h-0.5 w-8 bg-emerald rounded-full" />

@@ -1,14 +1,14 @@
 import { useEffect } from "react";
 
 interface SplashScreenProps {
-  onComplete: (email: string | null) => void;
+  onComplete: (name: string | null) => void;
 }
 
 export default function SplashScreen({ onComplete }: SplashScreenProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
-      const email = localStorage.getItem("wiz_session");
-      onComplete(email);
+      const name = localStorage.getItem("wiz_session");
+      onComplete(name);
     }, 2000);
     return () => clearTimeout(timer);
   }, [onComplete]);
@@ -17,9 +17,7 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
     <div
       className="fixed inset-0 flex flex-col items-center justify-center"
       style={{ background: "#0a0a0a" }}
-      data-ocid="splash.page"
     >
-      {/* Centered logo + app name */}
       <div className="flex flex-col items-center gap-4">
         <img
           src="/assets/uploads/IMG_20260323_010002-1.png"
@@ -36,14 +34,12 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
             fontWeight: 300,
             letterSpacing: "0.2em",
             textAlign: "center",
-            fontFamily: "Plus Jakarta Sans, Inter, sans-serif",
+            fontFamily: "Cairo, Plus Jakarta Sans, Inter, sans-serif",
           }}
         >
           Wealth Insight Zone
         </p>
       </div>
-
-      {/* Bottom branding: WIZ by Aura */}
       <div
         style={{
           position: "absolute",
@@ -57,7 +53,7 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
       >
         <p
           style={{
-            fontFamily: "Plus Jakarta Sans, Inter, sans-serif",
+            fontFamily: "Cairo, Plus Jakarta Sans, Inter, sans-serif",
             fontSize: 11,
             fontWeight: 400,
             letterSpacing: "0.05em",

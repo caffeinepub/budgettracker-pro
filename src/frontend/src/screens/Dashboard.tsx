@@ -20,6 +20,7 @@ import { useInstallPrompt } from "../hooks/useInstallPrompt";
 import type { Expense, ScheduledExpense } from "../types/expense";
 import { PAYMENT_METHOD_ICONS, getCategoryIcon } from "../types/expense";
 import { type Currency, getCurrencySymbol } from "../utils/currency";
+import { useLanguage } from "../utils/i18n";
 
 interface DashboardProps {
   expenses: Expense[];
@@ -111,6 +112,7 @@ export default function Dashboard({
   onOpenSettings,
   onOpenUpcoming,
 }: DashboardProps) {
+  const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const {
     showBanner: showInstallBanner,
@@ -141,14 +143,12 @@ export default function Dashboard({
   };
 
   const totalBudget = budget?.amount ?? 0;
-  // Smart deduction: only count expenses with date <= today
   const spent = expenses
     .filter((e) => e.date <= today)
     .reduce((s, e) => s + e.amount, 0);
   const remaining = totalBudget - spent;
   const sym = getCurrencySymbol(currency);
 
-  // Due This Week: scheduled expenses in (today, weekFromNow] that are not cancelled
   const dueThisWeek = scheduledExpenses.filter(
     (s) =>
       !s.cancelled &&
@@ -166,50 +166,92 @@ export default function Dashboard({
             exp.notes?.toLowerCase().includes(search.toLowerCase()),
         );
 
+  // Avatar
+  const avatarSrc = localStorage.getItem("wiz_user_avatar");
+  const displayName = currentUser ?? "Chief";
+
   return (
     <div
       className="flex flex-col gap-4 p-4 pt-10 animate-fade-in"
       data-ocid="dashboard.page"
     >
-      {/* Top-right controls */}
-      <div className="flex items-center justify-end gap-2">
-        {isVIP ? (
-          <span className="flex items-center gap-1 bg-vip/10 text-vip border border-vip/20 text-xs font-bold px-3 py-1.5 rounded-full">
-            <Crown size={12} /> VIP
-          </span>
-        ) : (
+      {/* Header with avatar + greeting */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5">
+          {avatarSrc ? (
+            <img
+              src={avatarSrc}
+              alt="avatar"
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                objectFit: "cover",
+                border: "2px solid rgba(220,38,38,0.4)",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                background: "#1a1a1a",
+                border: "2px solid #2a2a2a",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <span style={{ fontSize: 18 }}>👤</span>
+            </div>
+          )}
+          <div>
+            <p className="text-xs text-muted-foreground">
+              {t("dashboard_greeting")}
+            </p>
+            <p className="text-sm font-bold text-foreground leading-tight">
+              {displayName}! 👋
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {isVIP ? (
+            <span className="flex items-center gap-1 bg-vip/10 text-vip border border-vip/20 text-xs font-bold px-2.5 py-1 rounded-full">
+              <Crown size={11} /> VIP
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={onUpgrade}
+              className="text-xs font-semibold text-emerald border border-emerald/30 px-2.5 py-1 rounded-full hover:bg-emerald/5 transition-colors"
+            >
+              VIP ✨
+            </button>
+          )}
           <button
             type="button"
-            onClick={onUpgrade}
-            className="text-xs font-semibold text-emerald border border-emerald/30 px-3 py-1.5 rounded-full hover:bg-emerald/5 transition-colors"
+            onClick={onToggleDark}
+            title={darkMode ? "Light mode" : "Dark mode"}
+            className="flex items-center text-xs text-muted-foreground hover:text-foreground border border-border px-2 py-1 rounded-full transition-colors"
           >
-            Go VIP ✨
+            {darkMode ? <Sun size={13} /> : <Moon size={13} />}
           </button>
-        )}
-        <button
-          type="button"
-          onClick={onToggleDark}
-          title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border hover:border-border/60 px-2.5 py-1.5 rounded-full transition-colors"
-        >
-          {darkMode ? <Sun size={13} /> : <Moon size={13} />}
-        </button>
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          title="Settings"
-          className="flex items-center text-xs text-muted-foreground hover:text-foreground border border-border hover:border-border/60 px-2.5 py-1.5 rounded-full transition-colors"
-        >
-          <Settings size={13} />
-        </button>
-        <button
-          type="button"
-          onClick={onLogout}
-          title="Log Out"
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground border border-border hover:border-border/60 px-2.5 py-1.5 rounded-full transition-colors"
-        >
-          <LogOut size={13} />
-        </button>
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="flex items-center text-xs text-muted-foreground hover:text-foreground border border-border px-2 py-1 rounded-full transition-colors"
+          >
+            <Settings size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex items-center text-xs text-muted-foreground hover:text-foreground border border-border px-2 py-1 rounded-full transition-colors"
+          >
+            <LogOut size={13} />
+          </button>
+        </div>
       </div>
 
       {/* PWA Install Banner */}
@@ -236,22 +278,23 @@ export default function Dashboard({
               className="text-xs font-bold leading-tight"
               style={{ color: "#f87171" }}
             >
-              Add WIZ to Home Screen
+              {t("dashboard_install_title")}
             </p>
             <p
               className="text-xs mt-0.5"
               style={{ color: "rgba(248,113,113,0.7)" }}
             >
-              Use offline, anytime — no browser needed.
+              {t("dashboard_install_sub")}
             </p>
           </div>
           <button
             type="button"
             onClick={install}
+            data-ocid="dashboard.install.button"
             className="flex-shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl"
             style={{ background: "#dc2626", color: "#ffffff" }}
           >
-            Install
+            {t("dashboard_install_btn")}
           </button>
           <button
             type="button"
@@ -271,13 +314,14 @@ export default function Dashboard({
             background: "rgba(245, 158, 11, 0.08)",
             border: "1px solid rgba(245, 158, 11, 0.28)",
           }}
+          data-ocid="dashboard.reminder.panel"
         >
           <span className="text-base leading-none select-none">🎯</span>
           <p
             className="flex-1 text-xs font-semibold"
             style={{ color: "#f59e0b" }}
           >
-            Don&apos;t forget to track your spending today, Chief!
+            {t("dashboard_reminder")}
           </p>
           <button
             type="button"
@@ -294,13 +338,13 @@ export default function Dashboard({
         <ProgressRing spent={spent} budget={totalBudget} currencySymbol={sym} />
         {budget && (
           <p className="text-xs text-muted-foreground -mt-2">
-            Budget period: {budget.durationLabel}
+            {t("dashboard_budget")}: {budget.durationLabel}
           </p>
         )}
         <div className="w-full grid grid-cols-2 gap-3">
           <div className="bg-background rounded-2xl p-3 text-center">
             <p className="text-xs text-muted-foreground font-medium">
-              Total Budget
+              {t("dashboard_budget")}
             </p>
             <p className="text-lg font-bold text-foreground">
               {sym}
@@ -309,10 +353,12 @@ export default function Dashboard({
           </div>
           <div className="bg-background rounded-2xl p-3 text-center">
             <p className="text-xs text-muted-foreground font-medium">
-              Remaining
+              {t("dashboard_remaining")}
             </p>
             <p
-              className={`text-lg font-bold ${remaining < 0 ? "text-destructive" : "text-emerald"}`}
+              className={`text-lg font-bold ${
+                remaining < 0 ? "text-destructive" : "text-emerald"
+              }`}
             >
               {sym}
               {Math.abs(remaining).toFixed(0)}
@@ -345,15 +391,14 @@ export default function Dashboard({
           </span>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-bold" style={{ color: "#818cf8" }}>
-              Due This Week
+              {t("dashboard_due_week")}
             </p>
             <p
               className="text-[11px] mt-0.5"
               style={{ color: "rgba(129,140,248,0.7)" }}
             >
-              {dueThisWeek.length} expense{dueThisWeek.length !== 1 ? "s" : ""}{" "}
-              · {sym}
-              {dueThisWeekTotal.toFixed(2)} upcoming
+              {dueThisWeek.length} · {sym}
+              {dueThisWeekTotal.toFixed(2)}
             </p>
           </div>
           <ChevronRight size={15} color="#818cf8" className="opacity-60" />
@@ -364,13 +409,14 @@ export default function Dashboard({
       <button
         type="button"
         onClick={onEditBudget}
+        data-ocid="dashboard.edit_budget.button"
         className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full text-xs font-semibold text-muted-foreground hover:text-foreground border border-border hover:border-border/60 transition-colors"
       >
         <Pencil size={12} />
-        Edit Budget
+        {t("dashboard_edit_budget")}
       </button>
 
-      {/* Add Cash Expense Button */}
+      {/* Add Expense Button */}
       <button
         type="button"
         data-ocid="dashboard.add_expense.primary_button"
@@ -378,7 +424,7 @@ export default function Dashboard({
         className="w-full flex items-center justify-center gap-2 bg-emerald text-white font-bold py-4 rounded-2xl shadow-emerald hover:bg-emerald-dark active:scale-[0.98] transition-all"
       >
         <Plus size={20} />
-        Add Cash Expense
+        Add Expense
       </button>
 
       {/* Search Bar */}
@@ -388,10 +434,11 @@ export default function Dashboard({
           className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
         />
         <Input
-          placeholder="Search by name or category…"
+          placeholder="Search..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9 pr-9 bg-secondary border-0 rounded-2xl text-sm"
+          data-ocid="dashboard.search_input"
         />
         {search && (
           <button
@@ -407,17 +454,24 @@ export default function Dashboard({
       {/* Recent Expenses */}
       <div className="bg-card rounded-3xl shadow-card p-4">
         <h2 className="text-sm font-bold text-foreground mb-3">
-          {search ? `Results for "${search}"` : "Recent Expenses"}
+          {search ? `Results for "${search}"` : t("dashboard_recent")}
         </h2>
         {filteredExpenses.length === 0 ? (
-          <p className="text-center text-muted-foreground text-sm py-4">
-            {search ? "No matching expenses" : "No expenses yet"}
+          <p
+            className="text-center text-muted-foreground text-sm py-4"
+            data-ocid="dashboard.expenses.empty_state"
+          >
+            {t("dashboard_no_expenses")}
           </p>
         ) : (
-          <ul className="flex flex-col gap-2">
-            {filteredExpenses.map((exp, _i) => (
+          <ul
+            className="flex flex-col gap-2"
+            data-ocid="dashboard.expenses.list"
+          >
+            {filteredExpenses.map((exp, i) => (
               <li
                 key={exp.id}
+                data-ocid={`dashboard.expenses.item.${i + 1}`}
                 className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-background transition-colors"
               >
                 <span className="text-xl w-8 h-8 flex items-center justify-center bg-background rounded-xl">
@@ -469,7 +523,7 @@ export default function Dashboard({
             onClick={onUpgrade}
             className="w-full bg-white text-emerald-dark font-bold text-sm py-3 rounded-xl hover:bg-white/90 active:scale-[0.98] transition-all"
           >
-            Upgrade — $2.50/mo ✨
+            Upgrade — $2.50 / 6 months ✨
           </button>
         </div>
       )}
