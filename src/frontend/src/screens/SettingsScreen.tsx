@@ -1,5 +1,13 @@
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Bell, Globe, Moon, ShieldCheck, User } from "lucide-react";
+import {
+  ArrowLeft,
+  Bell,
+  Download,
+  Globe,
+  Moon,
+  ShieldCheck,
+  User,
+} from "lucide-react";
 import { toast } from "sonner";
 import { type Lang, useLanguage } from "../utils/i18n";
 import { requestNotificationPermission } from "../utils/notifications";
@@ -13,6 +21,7 @@ interface SettingsScreenProps {
   onBack: () => void;
   onLanguageChange: (lang: Lang) => void;
   language: Lang;
+  onExportAllData: () => void;
 }
 
 export default function SettingsScreen({
@@ -24,6 +33,7 @@ export default function SettingsScreen({
   onBack,
   onLanguageChange,
   language,
+  onExportAllData,
 }: SettingsScreenProps) {
   const { t, isRTL } = useLanguage();
   const avatarSrc = localStorage.getItem("wiz_user_avatar");
@@ -232,7 +242,6 @@ export default function SettingsScreen({
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
           Preferences
         </p>
-        {/* Dark Mode */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center">
@@ -252,7 +261,6 @@ export default function SettingsScreen({
           />
         </div>
         <div className="border-t border-border" />
-        {/* Daily Reminders */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center">
@@ -272,6 +280,52 @@ export default function SettingsScreen({
             checked={remindersEnabled}
             onCheckedChange={handleToggleReminders}
           />
+        </div>
+      </section>
+
+      {/* Data Export */}
+      <section
+        className="bg-card rounded-3xl shadow-card p-5 flex flex-col gap-4"
+        data-ocid="settings.export.card"
+      >
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+          Data Export
+        </p>
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald/10 flex items-center justify-center flex-shrink-0">
+            <Download size={16} className="text-emerald" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground">
+              Download All Data
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Exports all budgets &amp; transactions as CSV
+            </p>
+          </div>
+          <button
+            type="button"
+            data-ocid="settings.export.button"
+            onClick={onExportAllData}
+            style={{
+              background: "rgba(16,185,129,0.12)",
+              border: "1px solid rgba(16,185,129,0.3)",
+              borderRadius: 10,
+              padding: "8px 14px",
+              fontSize: 12,
+              fontWeight: 700,
+              color: "#10b981",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              whiteSpace: "nowrap",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <Download size={13} />
+            Export
+          </button>
         </div>
       </section>
 

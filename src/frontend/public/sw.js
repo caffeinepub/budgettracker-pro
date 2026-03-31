@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wiz-offline-v4';
+const CACHE_NAME = 'wiz-offline-v5';
 
 // Core app-shell assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -8,7 +8,9 @@ const PRECACHE_URLS = [
   '/assets/uploads/IMG_20260323_010002-1.png',
 ];
 
-// ─── INSTALL: pre-cache the app shell ────────────────────────────────────────
+// ─── INSTALL: pre-cache the app shell & skip waiting immediately ─────────────
+// skipWaiting() forces the new SW to activate right away without waiting
+// for all existing tabs to close.
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -16,7 +18,8 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// ─── ACTIVATE: remove stale caches ───────────────────────────────────────────
+// ─── ACTIVATE: remove stale caches & claim all open tabs ─────────────────────
+// clients.claim() makes the new SW take control of all open pages immediately.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
@@ -79,8 +82,14 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// ─── MESSAGES: schedule daily reminder notifications ─────────────────────────
+// ─── MESSAGES: explicit skipWaiting trigger + daily reminder scheduling ───────
 self.addEventListener('message', (event) => {
+  // Allow the app to explicitly trigger skipWaiting (belt-and-suspenders)
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
+  }
+
   if (event.data && event.data.type === 'SCHEDULE_DAILY_REMINDER') {
     const lang = event.data.lang || 'en';
     const now = new Date();

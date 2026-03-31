@@ -14,8 +14,8 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import { useState } from "react";
-import type { BudgetData } from "../App";
+import { useRef, useState } from "react";
+import type { BudgetData, BudgetEntry, SavingsGoal } from "../App";
 import { useInstallPrompt } from "../hooks/useInstallPrompt";
 import type { Expense, ScheduledExpense } from "../types/expense";
 import { PAYMENT_METHOD_ICONS, getCategoryIcon } from "../types/expense";
@@ -37,6 +37,15 @@ interface DashboardProps {
   currentUser: string | null;
   onOpenSettings: () => void;
   onOpenUpcoming: () => void;
+  // Multiple budgets
+  budgets: BudgetEntry[];
+  activeBudgetId: string | null;
+  onCreateBudget: (name: string) => void;
+  onSwitchBudget: (id: string) => void;
+  // Savings goal
+  savingsGoal: SavingsGoal | null;
+  onSetSavingsGoal: (goal: SavingsGoal) => void;
+  onAddFundsToGoal: (amount: number) => void;
 }
 
 function ProgressRing({
@@ -96,6 +105,478 @@ function ProgressRing({
   );
 }
 
+// Budget Switcher
+function BudgetSwitcher({
+  budgets,
+  activeBudgetId,
+  onSwitch,
+  onCreate,
+}: {
+  budgets: BudgetEntry[];
+  activeBudgetId: string | null;
+  onSwitch: (id: string) => void;
+  onCreate: (name: string) => void;
+}) {
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleCreate = () => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    onCreate(trimmed);
+    setNewName("");
+    setCreating(false);
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div
+        className="flex items-center gap-2 overflow-x-auto pb-1"
+        style={{ scrollbarWidth: "none" }}
+        data-ocid="dashboard.budgets.list"
+      >
+        {budgets.map((b) => (
+          <button
+            key={b.id}
+            type="button"
+            data-ocid="dashboard.budget.tab"
+            onClick={() => onSwitch(b.id)}
+            style={{
+              flexShrink: 0,
+              padding: "6px 14px",
+              borderRadius: 999,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              border: "1px solid",
+              transition: "all 0.18s ease",
+              background:
+                b.id === activeBudgetId ? "#dc2626" : "rgba(255,255,255,0.04)",
+              borderColor:
+                b.id === activeBudgetId ? "#dc2626" : "rgba(255,255,255,0.08)",
+              color: b.id === activeBudgetId ? "#fff" : "#a1a1aa",
+              fontFamily: "inherit",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {b.name}
+          </button>
+        ))}
+        {creating ? (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <input
+              ref={inputRef}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleCreate();
+                if (e.key === "Escape") setCreating(false);
+              }}
+              placeholder="Budget name"
+              data-ocid="dashboard.budget_name.input"
+              style={{
+                background: "#1a1a1a",
+                border: "1px solid #3f3f46",
+                borderRadius: 10,
+                padding: "5px 10px",
+                fontSize: 12,
+                color: "#fff",
+                width: 110,
+                fontFamily: "inherit",
+                outline: "none",
+              }}
+            />
+            <button
+              type="button"
+              data-ocid="dashboard.budget_create.confirm_button"
+              onClick={handleCreate}
+              style={{
+                background: "#10b981",
+                border: "none",
+                borderRadius: 8,
+                padding: "5px 10px",
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#fff",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Add
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreating(false)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#71717a",
+                cursor: "pointer",
+                padding: "4px",
+              }}
+            >
+              <X size={13} />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            data-ocid="dashboard.budget_add.button"
+            onClick={() => {
+              setCreating(true);
+              setTimeout(() => inputRef.current?.focus(), 50);
+            }}
+            style={{
+              flexShrink: 0,
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(255,255,255,0.06)",
+              border: "1px dashed rgba(255,255,255,0.15)",
+              cursor: "pointer",
+              color: "#71717a",
+            }}
+            title="Create new budget"
+          >
+            <Plus size={13} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Savings Goal Card
+function SavingsGoalCard({
+  goal,
+  sym,
+  onSetGoal,
+  onAddFunds,
+}: {
+  goal: SavingsGoal | null;
+  sym: string;
+  onSetGoal: (g: SavingsGoal) => void;
+  onAddFunds: (amount: number) => void;
+}) {
+  const [settingGoal, setSettingGoal] = useState(false);
+  const [goalName, setGoalName] = useState("");
+  const [goalTarget, setGoalTarget] = useState("");
+  const [addingFunds, setAddingFunds] = useState(false);
+  const [fundsAmount, setFundsAmount] = useState("");
+
+  const handleSaveGoal = () => {
+    const name = goalName.trim();
+    const target = Number.parseFloat(goalTarget);
+    if (!name || Number.isNaN(target) || target <= 0) return;
+    onSetGoal({ name, target, saved: goal?.saved ?? 0 });
+    setSettingGoal(false);
+    setGoalName("");
+    setGoalTarget("");
+  };
+
+  const handleAddFunds = () => {
+    const amount = Number.parseFloat(fundsAmount);
+    if (Number.isNaN(amount) || amount <= 0) return;
+    onAddFunds(amount);
+    setAddingFunds(false);
+    setFundsAmount("");
+  };
+
+  const progress = goal ? Math.min(goal.saved / goal.target, 1) : 0;
+  const pct = Math.round(progress * 100);
+  const isComplete = goal !== null && goal.saved >= goal.target;
+
+  return (
+    <div
+      className="rounded-3xl p-5 flex flex-col gap-3"
+      style={{
+        background: "oklch(var(--card))",
+        border: "1px solid oklch(var(--border))",
+      }}
+      data-ocid="dashboard.savings_goal.card"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span style={{ fontSize: 18 }}>🐷</span>
+          <span
+            style={{
+              color: "oklch(var(--foreground))",
+              fontWeight: 700,
+              fontSize: 14,
+            }}
+          >
+            Savings Goal
+          </span>
+        </div>
+        {goal && (
+          <button
+            type="button"
+            data-ocid="dashboard.savings_goal.edit_button"
+            onClick={() => {
+              setGoalName(goal.name);
+              setGoalTarget(String(goal.target));
+              setSettingGoal(true);
+            }}
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: "#71717a",
+              padding: 4,
+            }}
+          >
+            <Pencil size={13} />
+          </button>
+        )}
+      </div>
+
+      {/* Set Goal Form */}
+      {settingGoal && (
+        <div className="flex flex-col gap-2 mt-1">
+          <input
+            value={goalName}
+            onChange={(e) => setGoalName(e.target.value)}
+            placeholder="Goal name (e.g. New Headphones)"
+            data-ocid="dashboard.savings_goal_name.input"
+            style={{
+              background: "#1a1a1a",
+              border: "1px solid #3f3f46",
+              borderRadius: 10,
+              padding: "9px 12px",
+              fontSize: 13,
+              color: "#fff",
+              width: "100%",
+              fontFamily: "inherit",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+          <input
+            type="number"
+            value={goalTarget}
+            onChange={(e) => setGoalTarget(e.target.value)}
+            placeholder={`Target amount (${sym})`}
+            data-ocid="dashboard.savings_goal_target.input"
+            style={{
+              background: "#1a1a1a",
+              border: "1px solid #3f3f46",
+              borderRadius: 10,
+              padding: "9px 12px",
+              fontSize: 13,
+              color: "#fff",
+              width: "100%",
+              fontFamily: "inherit",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              data-ocid="dashboard.savings_goal.save_button"
+              onClick={handleSaveGoal}
+              style={{
+                flex: 1,
+                background: "#10b981",
+                border: "none",
+                borderRadius: 10,
+                padding: "10px",
+                fontSize: 13,
+                fontWeight: 700,
+                color: "#fff",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Save Goal
+            </button>
+            <button
+              type="button"
+              data-ocid="dashboard.savings_goal.cancel_button"
+              onClick={() => setSettingGoal(false)}
+              style={{
+                padding: "10px 14px",
+                background: "transparent",
+                border: "1px solid #3f3f46",
+                borderRadius: 10,
+                fontSize: 13,
+                color: "#71717a",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Goal content */}
+      {!settingGoal && goal && (
+        <>
+          <p
+            style={{
+              color: "oklch(var(--foreground))",
+              fontWeight: 700,
+              fontSize: 15,
+              marginTop: -4,
+            }}
+          >
+            {goal.name}
+          </p>
+          {isComplete ? (
+            <p style={{ color: "#10b981", fontWeight: 700, fontSize: 15 }}>
+              🎉 Goal Reached!
+            </p>
+          ) : (
+            <>
+              {/* Progress bar */}
+              <div
+                style={{
+                  height: 6,
+                  borderRadius: 3,
+                  background: "#1f1f1f",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${pct}%`,
+                    background: "#10b981",
+                    borderRadius: 3,
+                    transition: "width 0.5s ease",
+                  }}
+                  data-ocid="dashboard.savings_goal.loading_state"
+                />
+              </div>
+              <div className="flex justify-between items-center">
+                <span style={{ color: "#a1a1aa", fontSize: 12 }}>
+                  {sym}
+                  {goal.saved.toFixed(2)} of {sym}
+                  {goal.target.toFixed(2)}
+                </span>
+                <span
+                  style={{ color: "#10b981", fontSize: 12, fontWeight: 700 }}
+                >
+                  {pct}%
+                </span>
+              </div>
+            </>
+          )}
+          {/* Add Funds */}
+          {!isComplete &&
+            (addingFunds ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={fundsAmount}
+                  onChange={(e) => setFundsAmount(e.target.value)}
+                  placeholder="Amount"
+                  data-ocid="dashboard.savings_goal_funds.input"
+                  style={{
+                    flex: 1,
+                    background: "#1a1a1a",
+                    border: "1px solid #3f3f46",
+                    borderRadius: 10,
+                    padding: "8px 12px",
+                    fontSize: 13,
+                    color: "#fff",
+                    fontFamily: "inherit",
+                    outline: "none",
+                  }}
+                />
+                <button
+                  type="button"
+                  data-ocid="dashboard.savings_goal_funds.confirm_button"
+                  onClick={handleAddFunds}
+                  style={{
+                    background: "#10b981",
+                    border: "none",
+                    borderRadius: 10,
+                    padding: "8px 12px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#fff",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddingFunds(false)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "#71717a",
+                    cursor: "pointer",
+                    padding: 4,
+                  }}
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                data-ocid="dashboard.savings_goal_add_funds.button"
+                onClick={() => setAddingFunds(true)}
+                style={{
+                  alignSelf: "flex-end",
+                  background: "rgba(16,185,129,0.12)",
+                  border: "1px solid rgba(16,185,129,0.3)",
+                  borderRadius: 10,
+                  padding: "6px 14px",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "#10b981",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                + Add Funds
+              </button>
+            ))}
+        </>
+      )}
+
+      {/* No goal set */}
+      {!settingGoal && !goal && (
+        <>
+          <p style={{ color: "#71717a", fontSize: 13 }}>No goal set yet</p>
+          <button
+            type="button"
+            data-ocid="dashboard.savings_goal_set.button"
+            onClick={() => setSettingGoal(true)}
+            style={{
+              alignSelf: "flex-start",
+              background: "rgba(16,185,129,0.12)",
+              border: "1px solid rgba(16,185,129,0.3)",
+              borderRadius: 10,
+              padding: "7px 16px",
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#10b981",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            + Set a Goal
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard({
   expenses,
   scheduledExpenses,
@@ -111,6 +592,13 @@ export default function Dashboard({
   currentUser,
   onOpenSettings,
   onOpenUpcoming,
+  budgets,
+  activeBudgetId,
+  onCreateBudget,
+  onSwitchBudget,
+  savingsGoal,
+  onSetSavingsGoal,
+  onAddFundsToGoal,
 }: DashboardProps) {
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
@@ -166,7 +654,6 @@ export default function Dashboard({
             exp.notes?.toLowerCase().includes(search.toLowerCase()),
         );
 
-  // Avatar
   const avatarSrc = localStorage.getItem("wiz_user_avatar");
   const displayName = currentUser ?? "Chief";
 
@@ -175,7 +662,7 @@ export default function Dashboard({
       className="flex flex-col gap-4 p-4 pt-10 animate-fade-in"
       data-ocid="dashboard.page"
     >
-      {/* Header with avatar + greeting */}
+      {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
           {avatarSrc ? (
@@ -253,6 +740,16 @@ export default function Dashboard({
           </button>
         </div>
       </div>
+
+      {/* Budget Switcher */}
+      {budgets.length > 0 && (
+        <BudgetSwitcher
+          budgets={budgets}
+          activeBudgetId={activeBudgetId}
+          onSwitch={onSwitchBudget}
+          onCreate={onCreateBudget}
+        />
+      )}
 
       {/* PWA Install Banner */}
       {showInstallBanner && (
@@ -367,6 +864,14 @@ export default function Dashboard({
           </div>
         </div>
       </div>
+
+      {/* Savings Goal Card */}
+      <SavingsGoalCard
+        goal={savingsGoal}
+        sym={sym}
+        onSetGoal={onSetSavingsGoal}
+        onAddFunds={onAddFundsToGoal}
+      />
 
       {/* Due This Week Card */}
       {dueThisWeek.length > 0 && (
