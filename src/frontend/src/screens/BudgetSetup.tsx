@@ -65,6 +65,7 @@ export default function BudgetSetup({
 
     let days = 0;
     let durationLabel = selectedLabel;
+    const today = new Date().toISOString().split("T")[0];
 
     if (selectedLabel === "Custom") {
       if (!customStart || !customEnd) {
@@ -87,7 +88,7 @@ export default function BudgetSetup({
       days = found?.days ?? 30;
     }
 
-    onComplete({ amount, durationLabel, durationDays: days });
+    onComplete({ amount, durationLabel, durationDays: days, startDate: today });
   };
 
   const amount = Number.parseFloat(amountStr);
@@ -115,7 +116,9 @@ export default function BudgetSetup({
             <h1 className="text-2xl font-bold text-white tracking-tight">
               Set Your Budget
             </h1>
-            <p className="text-sm text-white/50 mt-1">Let's get you started</p>
+            <p className="text-sm text-white/50 mt-1">
+              Let&apos;s get you started
+            </p>
           </div>
         </div>
 

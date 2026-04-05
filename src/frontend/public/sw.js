@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wiz-offline-v5';
+const CACHE_NAME = 'wiz-offline-v6';
 
 // Core app-shell assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -8,18 +8,17 @@ const PRECACHE_URLS = [
   '/assets/uploads/IMG_20260323_010002-1.png',
 ];
 
-// ─── INSTALL: pre-cache the app shell & skip waiting immediately ─────────────
-// skipWaiting() forces the new SW to activate right away without waiting
-// for all existing tabs to close.
+// ─── INSTALL: pre-cache the app shell ────────────────────────────────────────
+// NOTE: skipWaiting() is intentionally NOT called here.
+// The new SW will enter the 'waiting' state so the app can detect the update
+// and show the user an 'Update Available' prompt before reloading.
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
   );
 });
 
 // ─── ACTIVATE: remove stale caches & claim all open tabs ─────────────────────
-// clients.claim() makes the new SW take control of all open pages immediately.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
@@ -34,31 +33,18 @@ self.addEventListener('activate', (event) => {
 });
 
 // ─── FETCH: Cache-First, falling back to network ─────────────────────────────
-// Only handles same-origin GET requests for static UI assets.
-// Does NOT intercept localStorage, IndexedDB, or any dynamic data.
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-
-  // Only cache GET requests
   if (request.method !== 'GET') return;
-
   const url = new URL(request.url);
-
-  // Only handle same-origin requests (skip API calls, CDN fonts, etc.)
   if (url.origin !== self.location.origin) return;
-
-  // Skip browser-extension and non-http(s) schemes
   if (!url.protocol.startsWith('http')) return;
 
   event.respondWith(
     caches.match(request).then((cached) => {
-      // Cache hit — return immediately (offline-first)
       if (cached) return cached;
-
-      // Cache miss — fetch from network and store for next time
       return fetch(request)
         .then((response) => {
-          // Only cache valid, successful responses
           if (
             !response ||
             response.status !== 200 ||
@@ -67,13 +53,11 @@ self.addEventListener('fetch', (event) => {
           ) {
             return response;
           }
-
           const toCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, toCache));
           return response;
         })
         .catch(() => {
-          // Network failed + no cache — return the app shell for navigation
           if (request.mode === 'navigate') {
             return caches.match('/index.html');
           }
@@ -82,9 +66,9 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// ─── MESSAGES: explicit skipWaiting trigger + daily reminder scheduling ───────
+// ─── MESSAGES ────────────────────────────────────────────────────────────────
 self.addEventListener('message', (event) => {
-  // Allow the app to explicitly trigger skipWaiting (belt-and-suspenders)
+  // User clicked 'Refresh Now' → skip waiting and activate immediately
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
     return;
@@ -114,7 +98,7 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// ─── PERIODIC SYNC: background daily reminder fallback ───────────────────────
+// ─── PERIODIC SYNC ────────────────────────────────────────────────────────────
 self.addEventListener('periodicsync', (event) => {
   if (event.tag === 'daily-expense-reminder') {
     event.waitUntil(
@@ -127,7 +111,7 @@ self.addEventListener('periodicsync', (event) => {
   }
 });
 
-// ─── NOTIFICATION CLICK: open/focus the app ──────────────────────────────────
+// ─── NOTIFICATION CLICK ───────────────────────────────────────────────────────
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(

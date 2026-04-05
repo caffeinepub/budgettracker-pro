@@ -22,6 +22,9 @@ export default defineConfig({
   css: {
     postcss: "./postcss.config.js",
   },
+  define: {
+    __BUILD_TS__: JSON.stringify(new Date().toISOString()),
+  },
   optimizeDeps: {
     esbuildOptions: {
       define: {

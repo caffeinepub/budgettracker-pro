@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { ArchivedCycle } from "../App";
 import type { Expense } from "../types/expense";
 import { getCategoryColor, getCategoryIcon } from "../types/expense";
 import { type Currency, getCurrencySymbol } from "../utils/currency";
@@ -24,6 +25,7 @@ interface AnalyticsProps {
   onUpgrade: () => void;
   currency: Currency;
   darkMode?: boolean;
+  archivedCycles?: ArchivedCycle[];
 }
 
 type TimePeriod = "week" | "month" | "custom";
@@ -324,11 +326,13 @@ export default function Analytics({
   onUpgrade,
   currency,
   darkMode = false,
+  archivedCycles = [],
 }: AnalyticsProps) {
   const [activeTab, setActiveTab] = useState<"summary" | "insights">("summary");
   const [period, setPeriod] = useState<TimePeriod>("month");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [selectedCycleIdx, setSelectedCycleIdx] = useState<number | null>(null);
   const sym = getCurrencySymbol(currency);
 
   // Theme tokens
@@ -374,6 +378,28 @@ export default function Analytics({
     (maxI, cur, i, arr) => (cur.amount > arr[maxI].amount ? i : maxI),
     0,
   );
+
+  // Determine which expenses to use for insights (archived cycle or current)
+  const insightsExpenses =
+    selectedCycleIdx !== null && archivedCycles[selectedCycleIdx]
+      ? archivedCycles[selectedCycleIdx].expenses
+      : expenses;
+
+  // Insights all-time category totals (uses insightsExpenses)
+  const insightsCategoryTotals = insightsExpenses.reduce<
+    Record<string, number>
+  >((acc, e) => {
+    const cat = e.category || "Uncategorized";
+    acc[cat] = (acc[cat] || 0) + e.amount;
+    return acc;
+  }, {});
+  const insightsSortedCategories = Object.entries(insightsCategoryTotals).sort(
+    ([, a], [, b]) => b - a,
+  );
+  const insightsTopCategory = insightsSortedCategories[0];
+  const insightsTotalSpent = insightsExpenses.reduce((s, e) => s + e.amount, 0);
+  const selectedCycle =
+    selectedCycleIdx !== null ? archivedCycles[selectedCycleIdx] : null;
 
   // Days in the period for avg/day
   let periodDays = 30;
@@ -1072,6 +1098,118 @@ export default function Analytics({
           style={{ display: "flex", flexDirection: "column", gap: 16 }}
           data-ocid="analytics.insights.panel"
         >
+          {/* Cycle Selector / Time Travel */}
+          {archivedCycles && archivedCycles.length > 0 && (
+            <div>
+              <p
+                style={{
+                  fontSize: 11,
+                  color: textMuted,
+                  marginBottom: 8,
+                  fontWeight: 600,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  margin: "0 0 8px",
+                }}
+              >
+                Time Travel
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  overflowX: "auto",
+                  paddingBottom: 4,
+                  scrollbarWidth: "none",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSelectedCycleIdx(null)}
+                  style={{
+                    flexShrink: 0,
+                    padding: "6px 14px",
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    border: "1px solid",
+                    background:
+                      selectedCycleIdx === null
+                        ? "#10b981"
+                        : "rgba(255,255,255,0.04)",
+                    borderColor:
+                      selectedCycleIdx === null
+                        ? "#10b981"
+                        : "rgba(255,255,255,0.08)",
+                    color: selectedCycleIdx === null ? "#fff" : "#a1a1aa",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Current
+                </button>
+                {archivedCycles.map((cycle, idx) => {
+                  const label = `${cycle.budgetName} · ${new Date(cycle.endDate).toLocaleDateString("en-US", { month: "short", year: "2-digit" })}`;
+                  return (
+                    <button
+                      key={cycle.archivedAt}
+                      type="button"
+                      onClick={() => setSelectedCycleIdx(idx)}
+                      style={{
+                        flexShrink: 0,
+                        padding: "6px 14px",
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        border: "1px solid",
+                        background:
+                          selectedCycleIdx === idx
+                            ? "#dc2626"
+                            : "rgba(255,255,255,0.04)",
+                        borderColor:
+                          selectedCycleIdx === idx
+                            ? "#dc2626"
+                            : "rgba(255,255,255,0.08)",
+                        color: selectedCycleIdx === idx ? "#fff" : "#a1a1aa",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedCycle && (
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: textMuted,
+                    marginTop: 8,
+                    fontStyle: "italic",
+                  }}
+                >
+                  Viewing: {selectedCycle.budgetName} ·{" "}
+                  {new Date(selectedCycle.startDate).toLocaleDateString(
+                    "en-US",
+                    {
+                      month: "short",
+                      day: "numeric",
+                    },
+                  )}{" "}
+                  –{" "}
+                  {new Date(selectedCycle.endDate).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* 6-Month Trend */}
           <div
             style={{
@@ -1187,7 +1325,7 @@ export default function Analytics({
             >
               🤖 Smart Insight
             </span>
-            {expenses.length > 0 && topCategory ? (
+            {insightsExpenses.length > 0 && insightsTopCategory ? (
               <p
                 style={{
                   fontSize: 13,
@@ -1198,16 +1336,17 @@ export default function Analytics({
               >
                 Your highest spending category overall is{" "}
                 <span style={{ color: textPrimary, fontWeight: 600 }}>
-                  {getCategoryIcon(topCategory[0])} {topCategory[0]}
+                  {getCategoryIcon(insightsTopCategory[0])}{" "}
+                  {insightsTopCategory[0]}
                 </span>
                 . You've logged{" "}
                 <span style={{ color: RED, fontWeight: 700 }}>
                   {sym}
-                  {expenses.reduce((s, e) => s + e.amount, 0).toFixed(0)}
+                  {insightsTotalSpent.toFixed(0)}
                 </span>{" "}
                 in total across{" "}
                 <span style={{ color: textPrimary, fontWeight: 600 }}>
-                  {expenses.length} transactions
+                  {insightsExpenses.length} transactions
                 </span>
                 . Consider setting a category-specific budget to stay on track.
               </p>
@@ -1219,7 +1358,7 @@ export default function Analytics({
           </div>
 
           {/* All-time category totals */}
-          {expenses.length > 0 && (
+          {insightsExpenses.length > 0 && (
             <div
               style={{
                 background: cardBg,
@@ -1239,31 +1378,28 @@ export default function Analytics({
                   margin: 0,
                 }}
               >
-                All-Time Category Totals
+                {selectedCycle
+                  ? `${selectedCycle.budgetName} — Breakdown`
+                  : "All-Time Category Totals"}
               </h2>
-              {Object.entries(
-                expenses.reduce<Record<string, number>>((acc, e) => {
-                  const cat = e.category || "Uncategorized";
-                  acc[cat] = (acc[cat] || 0) + e.amount;
-                  return acc;
-                }, {}),
-              )
-                .sort(([, a], [, b]) => b - a)
-                .map(([cat, amt], i, arr) => {
-                  const allTotal = arr.reduce((s, [, v]) => s + v, 0);
-                  return (
-                    <CategoryRow
-                      key={cat}
-                      cat={cat}
-                      amt={amt}
-                      pct={allTotal > 0 ? (amt / allTotal) * 100 : 0}
-                      sym={sym}
-                      isTop={i === 0}
-                      index={i}
-                      darkMode={darkMode}
-                    />
-                  );
-                })}
+              {insightsSortedCategories.map(([cat, amt], i) => {
+                return (
+                  <CategoryRow
+                    key={cat}
+                    cat={cat}
+                    amt={amt}
+                    pct={
+                      insightsTotalSpent > 0
+                        ? (amt / insightsTotalSpent) * 100
+                        : 0
+                    }
+                    sym={sym}
+                    isTop={i === 0}
+                    index={i}
+                    darkMode={darkMode}
+                  />
+                );
+              })}
             </div>
           )}
         </div>

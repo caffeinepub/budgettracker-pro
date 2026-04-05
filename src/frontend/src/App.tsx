@@ -1,5 +1,5 @@
 import { Toaster } from "@/components/ui/sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import BottomNav from "./components/BottomNav";
 import AddExpense from "./screens/AddExpense";
@@ -18,6 +18,7 @@ import type {
   ScheduledExpense,
 } from "./types/expense";
 import { inferCategory } from "./types/expense";
+import { getCurrencySymbol } from "./utils/currency";
 import type { Currency } from "./utils/currency";
 import { type Lang, useLanguage } from "./utils/i18n";
 import {
@@ -25,6 +26,11 @@ import {
   scheduleDailyReminderViaSW,
   triggerImmediateNotificationIfNeeded,
 } from "./utils/notifications";
+
+// Injected at build time by Vite
+declare const __BUILD_TS__: string;
+
+const APP_VERSION = __BUILD_TS__;
 
 export type Screen =
   | "dashboard"
@@ -36,12 +42,11 @@ export type Screen =
   | "upcoming";
 type AppState = "splash" | "onboarding" | "budget-setup" | "main";
 
-const APP_VERSION = "v30";
-
 export interface BudgetData {
   amount: number;
   durationLabel: string;
   durationDays: number;
+  startDate?: string;
 }
 
 export interface BudgetEntry {
@@ -53,6 +58,18 @@ export interface SavingsGoal {
   name: string;
   target: number;
   saved: number;
+}
+
+export interface ArchivedCycle {
+  budgetId: string;
+  budgetName: string;
+  startDate: string;
+  endDate: string;
+  amount: number;
+  totalSpent: number;
+  savedAmount: number;
+  expenses: Expense[];
+  archivedAt: string;
 }
 
 function getBudget(key: string): BudgetData | null {
@@ -92,6 +109,19 @@ export function loadScheduled(key: string): ScheduledExpense[] {
 
 export function saveScheduled(key: string, items: ScheduledExpense[]) {
   localStorage.setItem(`wiz_scheduled_${key}`, JSON.stringify(items));
+}
+
+function loadArchivedCycles(user: string): ArchivedCycle[] {
+  try {
+    const raw = localStorage.getItem(`wiz_archived_cycles_${user}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveArchivedCycles(user: string, cycles: ArchivedCycle[]) {
+  localStorage.setItem(`wiz_archived_cycles_${user}`, JSON.stringify(cycles));
 }
 
 function applySmartCategories(expenses: Expense[]): {
@@ -161,25 +191,24 @@ function processScheduledExpenses(
 // ─── What's New Carousel ───────────────────────────────────────────────────
 const SLIDES = [
   {
-    icon: "📁",
-    title: "Multiple Budget Envelopes",
-    body: "Create separate budgets for different parts of your life — College, Personal, Trips. Each envelope tracks its own expenses independently. Switch between them instantly.",
+    icon: "📅",
+    title: "Budget Cycle Tracking",
+    body: "WIZ now tracks your budget cycles automatically. When a cycle ends, you'll see a summary of what you spent and saved — then choose when to start fresh.",
   },
   {
-    icon: "📊",
-    title: "Export Your Data",
-    body: "Download all your transactions across every budget as a clean CSV file. Your financial data is yours — keep it safe or analyze it in Excel.",
+    icon: "🕰️",
+    title: "Historical Insights",
+    body: "Go back in time. The Insights tab now lets you browse past budget cycles and see exactly how you spent in previous months.",
   },
   {
-    icon: "🎯",
-    title: "Savings Goal",
-    body: "Set a goal and watch your progress grow. Every time you add funds, it's automatically logged as a 'Savings' expense from your active budget — keeping your math perfectly accurate.",
+    icon: "⚡",
+    title: "Auto Updates",
+    body: "WIZ now detects new versions automatically. No more manual refreshes — just open the app and you'll always be on the latest version.",
   },
   {
-    id: "updates",
-    icon: "✨",
-    title: "Always Getting Better",
-    body: "WIZ is constantly improving. Every major update shows you exactly what's new so you never miss a feature. Dismiss once, never see again.",
+    icon: "🌍",
+    title: "Full Arabic Support",
+    body: "Every text in the app — from Quick-Tap chips to Insights charts — is now fully translated. Zero mixed English/Arabic text.",
   },
   { id: "future", icon: "", title: "", body: "" }, // Final special slide
 ];
@@ -305,7 +334,7 @@ function WhatsNewCarousel({
         <div className="flex items-center justify-center gap-2 mt-5 mb-4">
           {SLIDES.map((s, i) => (
             <button
-              key={s.id}
+              key={s.id ?? s.icon}
               type="button"
               onClick={() => goTo(i)}
               aria-label={`Go to slide ${i + 1}`}
@@ -373,6 +402,168 @@ function WhatsNewCarousel({
   );
 }
 
+// ─── Cycle Completed Modal ─────────────────────────────────────────────────
+function CycleCompletedModal({
+  cycle,
+  onStartNewCycle,
+  onViewHistory,
+  lang,
+}: {
+  cycle: ArchivedCycle;
+  onStartNewCycle: () => void;
+  onViewHistory: () => void;
+  lang: string;
+}) {
+  const isAr = lang === "ar";
+
+  const fmtDate = (d: string) => {
+    try {
+      return new Date(d).toLocaleDateString(isAr ? "ar-EG" : "en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    } catch {
+      return d;
+    }
+  };
+
+  const stats = [
+    {
+      label: isAr ? "الميزانية" : "Budget",
+      value: cycle.amount.toFixed(0),
+      color: "#a1a1aa",
+    },
+    {
+      label: isAr ? "المصروف" : "Spent",
+      value: cycle.totalSpent.toFixed(0),
+      color: "#ef4444",
+    },
+    {
+      label: isAr ? "الموفّر" : "Saved",
+      value: cycle.savedAmount.toFixed(0),
+      color: "#10b981",
+    },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-[55] flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.85)" }}
+      data-ocid="cycle_completed.dialog"
+    >
+      <div
+        style={{
+          background: "#18181b",
+          border: "1px solid #3f3f46",
+          borderRadius: 22,
+          padding: "28px 24px 24px",
+          width: "100%",
+          maxWidth: 360,
+          fontFamily: "Cairo, Plus Jakarta Sans, Inter, sans-serif",
+        }}
+      >
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>🎉</div>
+          <h2
+            style={{
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 20,
+              margin: 0,
+            }}
+          >
+            {isAr ? "اكتملت الدورة!" : "Cycle Completed!"}
+          </h2>
+          <p style={{ color: "#71717a", fontSize: 12, marginTop: 6 }}>
+            {cycle.budgetName} · {fmtDate(cycle.startDate)} –{" "}
+            {fmtDate(cycle.endDate)}
+          </p>
+        </div>
+
+        {/* Stats */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: 10,
+            marginBottom: 20,
+          }}
+        >
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              style={{
+                background: "#1a1a1a",
+                borderRadius: 14,
+                padding: "12px 8px",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 800,
+                  color: stat.color,
+                }}
+              >
+                {stat.value}
+              </div>
+              <div style={{ fontSize: 10, color: "#71717a", marginTop: 3 }}>
+                {stat.label}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Buttons */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button
+            type="button"
+            data-ocid="cycle_completed.confirm_button"
+            onClick={onStartNewCycle}
+            style={{
+              width: "100%",
+              background: "#10b981",
+              color: "#fff",
+              border: "none",
+              borderRadius: 14,
+              padding: "14px",
+              fontSize: 15,
+              fontWeight: 800,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              boxShadow: "0 0 12px rgba(16,185,129,0.3)",
+            }}
+          >
+            {isAr ? "🚀 بدء دورة جديدة" : "🚀 Start New Cycle"}
+          </button>
+          <button
+            type="button"
+            data-ocid="cycle_completed.cancel_button"
+            onClick={onViewHistory}
+            style={{
+              width: "100%",
+              background: "transparent",
+              color: "#9ca3af",
+              border: "1px solid #3f3f46",
+              borderRadius: 14,
+              padding: "12px",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {isAr ? "عرض السجل" : "View History"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [appState, setAppState] = useState<AppState>("splash");
   const [currentScreen, setCurrentScreen] = useState<Screen>("dashboard");
@@ -402,6 +593,58 @@ export default function App() {
 
   // Savings goal
   const [savingsGoal, setSavingsGoalState] = useState<SavingsGoal | null>(null);
+
+  // Archived cycles & cycle completed modal
+  const [archivedCycles, setArchivedCycles] = useState<ArchivedCycle[]>([]);
+  const [pendingCycleCompletion, setPendingCycleCompletion] =
+    useState<ArchivedCycle | null>(null);
+
+  // ─── SW Update Prompt ────────────────────────────────────────────────────
+  const waitingWorkerRef = useRef<ServiceWorker | null>(null);
+  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+
+    const showPrompt = (worker: ServiceWorker) => {
+      waitingWorkerRef.current = worker;
+      setShowUpdatePrompt(true);
+    };
+
+    navigator.serviceWorker.ready.then((registration) => {
+      // Already waiting on load (user had tab open during deploy)
+      if (registration.waiting) {
+        showPrompt(registration.waiting);
+      }
+
+      registration.addEventListener("updatefound", () => {
+        const installing = registration.installing;
+        if (!installing) return;
+        installing.addEventListener("statechange", () => {
+          if (
+            installing.state === "installed" &&
+            navigator.serviceWorker.controller
+          ) {
+            showPrompt(installing);
+          }
+        });
+      });
+    });
+
+    // When the new SW takes control → reload to get fresh assets
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      window.location.reload();
+    });
+  }, []);
+
+  const handleRefreshNow = () => {
+    if (waitingWorkerRef.current) {
+      waitingWorkerRef.current.postMessage({ type: "SKIP_WAITING" });
+    } else {
+      window.location.reload();
+    }
+  };
+  // ────────────────────────────────────────────────────────────────────────
 
   const _useLanguage = useLanguage;
   void _useLanguage;
@@ -441,6 +684,85 @@ export default function App() {
       localStorage.setItem(`wiz_reminders_${currentUser}`, String(next));
   };
 
+  // ─── Budget Lifecycle ─────────────────────────────────────────────────
+  const checkBudgetLifecycle = (
+    budgetId: string,
+    budgetName: string,
+    budgetData: BudgetData,
+    currentExpenses: Expense[],
+    user: string,
+  ) => {
+    if (!budgetData.startDate || !budgetData.durationDays) return;
+
+    // Don't re-archive if already done
+    const existingArchived = loadArchivedCycles(user);
+    const alreadyArchived = existingArchived.some(
+      (c) => c.budgetId === budgetId && c.startDate === budgetData.startDate,
+    );
+    if (alreadyArchived) return;
+
+    const today = new Date().toISOString().split("T")[0];
+    const start = new Date(budgetData.startDate);
+    const end = new Date(start);
+    end.setDate(end.getDate() + budgetData.durationDays);
+    const endDateStr = end.toISOString().split("T")[0];
+
+    if (endDateStr >= today) return; // cycle not done yet
+
+    // Compute spent from past expenses
+    const totalSpent = currentExpenses
+      .filter(
+        (e) =>
+          e.date >= (budgetData.startDate as string) && e.date <= endDateStr,
+      )
+      .reduce((s, e) => s + e.amount, 0);
+    const savedAmount = Math.max(0, budgetData.amount - totalSpent);
+
+    const archived: ArchivedCycle = {
+      budgetId,
+      budgetName,
+      startDate: budgetData.startDate,
+      endDate: endDateStr,
+      amount: budgetData.amount,
+      totalSpent,
+      savedAmount,
+      expenses: currentExpenses,
+      archivedAt: new Date().toISOString(),
+    };
+
+    // Save to archived cycles (cap at 12)
+    const updated = [archived, ...existingArchived].slice(0, 12);
+    saveArchivedCycles(user, updated);
+    setArchivedCycles(updated);
+    setPendingCycleCompletion(archived);
+  };
+
+  const handleStartNewCycle = () => {
+    if (!pendingCycleCompletion || !currentUser) return;
+    const { budgetId } = pendingCycleCompletion;
+    const today = new Date().toISOString().split("T")[0];
+
+    // Get current budget and update startDate
+    const existingBudget = getBudget(budgetId);
+    if (existingBudget) {
+      const refreshed: BudgetData = { ...existingBudget, startDate: today };
+      saveBudget(budgetId, refreshed);
+      if (budgetId === activeBudgetId) setBudget(refreshed);
+    }
+
+    // Clear expenses for this budget
+    saveExpenses(budgetId, []);
+    saveScheduled(budgetId, []);
+    if (budgetId === activeBudgetId) {
+      setExpenses([]);
+      setScheduledExpenses([]);
+    }
+
+    setPendingCycleCompletion(null);
+    toast.success("New cycle started! Fresh start today.");
+  };
+  // ─────────────────────────────────────────────────────────────────────
+
   // Load expenses and scheduled for a given budget id
   const loadBudgetData = (budgetId: string) => {
     const rawExpenses = loadExpenses(budgetId);
@@ -464,6 +786,8 @@ export default function App() {
         );
       }, 800);
     }
+
+    return updatedExpenses;
   };
 
   const addExpense = (expense: Expense, newScheduled?: ScheduledExpense[]) => {
@@ -512,6 +836,8 @@ export default function App() {
     setBudgets([]);
     setActiveBudgetId(null);
     setSavingsGoalState(null);
+    setArchivedCycles([]);
+    setPendingCycleCompletion(null);
     setAppState("onboarding");
     window.history.pushState(null, "", window.location.href);
   };
@@ -523,7 +849,6 @@ export default function App() {
     const updated = [...budgets, newEntry];
     setBudgets(updated);
     localStorage.setItem(`wiz_budgets_${currentUser}`, JSON.stringify(updated));
-    // Switch to new budget (no expenses yet)
     localStorage.setItem(`wiz_active_budget_${currentUser}`, id);
     setActiveBudgetId(id);
     setExpenses([]);
@@ -536,9 +861,19 @@ export default function App() {
     if (!currentUser || id === activeBudgetId) return;
     localStorage.setItem(`wiz_active_budget_${currentUser}`, id);
     setActiveBudgetId(id);
-    loadBudgetData(id);
+    const freshExpenses = loadBudgetData(id);
     const savedBudget = getBudget(id);
     setBudget(savedBudget);
+    if (savedBudget) {
+      const budgetName = budgets.find((b) => b.id === id)?.name ?? "Budget";
+      checkBudgetLifecycle(
+        id,
+        budgetName,
+        savedBudget,
+        freshExpenses,
+        currentUser,
+      );
+    }
   };
 
   const deleteBudget = (id: string) => {
@@ -549,7 +884,6 @@ export default function App() {
     localStorage.removeItem(`wiz_budget_${id}`);
     localStorage.removeItem(`wiz_expenses_${id}`);
     localStorage.removeItem(`wiz_scheduled_${id}`);
-    // Switch to first remaining budget
     if (updated.length > 0) {
       switchBudget(updated[0].id);
     } else {
@@ -651,26 +985,21 @@ export default function App() {
     const remindersRaw = localStorage.getItem(`wiz_reminders_${name}`);
     setRemindersEnabled(remindersRaw === "true");
 
-    // VIP backward compat
     const vipStatus =
       localStorage.getItem("wiz_vip") ||
       localStorage.getItem(`wiz_vip_${name}`);
     if (vipStatus === "lifetime") setIsVIP(true);
 
-    // Load saved language
     const savedLang = localStorage.getItem("wiz_language") as Lang;
     if (savedLang) setLanguageState(savedLang);
 
-    // Load saved currency
     const savedCurrency = localStorage.getItem("wiz_currency") as Currency;
     if (savedCurrency) setCurrency(savedCurrency);
 
-    // --- Multiple Budgets Migration & Init ---
     const budgetsRaw = localStorage.getItem(`wiz_budgets_${name}`);
     let budgetList: BudgetEntry[] = [];
 
     if (!budgetsRaw) {
-      // Migration: check for legacy single budget
       const legacyBudget = getBudget(name);
       const defaultId = `${name}_default`;
       const defaultEntry: BudgetEntry = { id: defaultId, name: "Personal" };
@@ -678,18 +1007,12 @@ export default function App() {
       localStorage.setItem(`wiz_budgets_${name}`, JSON.stringify(budgetList));
 
       if (legacyBudget) {
-        // Copy legacy budget to new id key
         saveBudget(defaultId, legacyBudget);
-        // Copy legacy expenses
         const legacyExpenses = loadExpenses(name);
-        if (legacyExpenses.length > 0) {
-          saveExpenses(defaultId, legacyExpenses);
-        }
-        // Copy legacy scheduled
+        if (legacyExpenses.length > 0) saveExpenses(defaultId, legacyExpenses);
         const legacyScheduled = loadScheduled(name);
-        if (legacyScheduled.length > 0) {
+        if (legacyScheduled.length > 0)
           saveScheduled(defaultId, legacyScheduled);
-        }
       }
     } else {
       try {
@@ -699,7 +1022,6 @@ export default function App() {
       }
     }
 
-    // Ensure at least one budget
     if (budgetList.length === 0) {
       const defaultId = `${name}_default`;
       budgetList = [{ id: defaultId, name: "Personal" }];
@@ -708,7 +1030,6 @@ export default function App() {
 
     setBudgets(budgetList);
 
-    // Determine active budget
     const savedActiveId = localStorage.getItem(`wiz_active_budget_${name}`);
     const validActive =
       savedActiveId && budgetList.some((b) => b.id === savedActiveId)
@@ -717,11 +1038,9 @@ export default function App() {
     localStorage.setItem(`wiz_active_budget_${name}`, validActive);
     setActiveBudgetId(validActive);
 
-    // Load budget settings for active
     const activeBudget = getBudget(validActive);
     if (activeBudget) setBudget(activeBudget);
 
-    // Load expenses/scheduled for active budget
     const rawExpenses = loadExpenses(validActive);
     const { result: categorizedExpenses, changed } =
       applySmartCategories(rawExpenses);
@@ -749,12 +1068,28 @@ export default function App() {
       }, 800);
     }
 
-    // Load savings goal
     try {
       const goalRaw = localStorage.getItem(`wiz_goal_${name}`);
       if (goalRaw) setSavingsGoalState(JSON.parse(goalRaw));
     } catch {
       // ignore
+    }
+
+    // Load archived cycles
+    const archived = loadArchivedCycles(name);
+    setArchivedCycles(archived);
+
+    // Check budget lifecycle for active budget
+    if (activeBudget) {
+      const budgetName =
+        budgetList.find((b) => b.id === validActive)?.name ?? "Budget";
+      checkBudgetLifecycle(
+        validActive,
+        budgetName,
+        activeBudget,
+        updatedExpenses,
+        name,
+      );
     }
   };
 
@@ -847,6 +1182,34 @@ export default function App() {
     );
   }
 
+  const handleQuickTapExpense = (
+    amount: number,
+    label: string,
+    icon: string,
+  ) => {
+    const storageKey = activeBudgetId ?? currentUser;
+    if (!storageKey) return;
+    const today = new Date().toISOString().split("T")[0];
+    const expense: Expense = {
+      id: `qt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      amount,
+      currency: currency as unknown as ExpenseCurrency,
+      category: label,
+      notes: "Quick tap",
+      date: today,
+      paymentMethod: "Cash",
+    };
+    setExpenses((prev) => {
+      const next = [expense, ...prev];
+      saveExpenses(storageKey, next);
+      return next;
+    });
+    toast.success(
+      `${icon} ${label} — ${getCurrencySymbol(currency)}${amount} logged`,
+      { duration: 2000 },
+    );
+  };
+
   const renderScreen = () => {
     switch (currentScreen) {
       case "dashboard":
@@ -873,6 +1236,7 @@ export default function App() {
             savingsGoal={savingsGoal}
             onSetSavingsGoal={handleSetSavingsGoal}
             onAddFundsToGoal={handleAddFundsToGoal}
+            onQuickTapExpense={handleQuickTapExpense}
           />
         );
       case "add":
@@ -893,6 +1257,7 @@ export default function App() {
             onUpgrade={() => setCurrentScreen("vip")}
             currency={currency}
             darkMode={darkMode}
+            archivedCycles={archivedCycles}
           />
         );
       case "cards":
@@ -962,7 +1327,85 @@ export default function App() {
           scheduledCount={scheduledExpenses.filter((s) => !s.cancelled).length}
         />
       </div>
-      {showWhatsNew && <WhatsNewCarousel onClose={handleCloseWhatsNew} />}
+
+      {/* Cycle Completed Modal — shown above everything */}
+      {pendingCycleCompletion && (
+        <CycleCompletedModal
+          cycle={pendingCycleCompletion}
+          onStartNewCycle={handleStartNewCycle}
+          onViewHistory={() => {
+            setPendingCycleCompletion(null);
+            setCurrentScreen("analytics");
+          }}
+          lang={language}
+        />
+      )}
+
+      {/* What's New Carousel — z-index 50 */}
+      {!pendingCycleCompletion && showWhatsNew && (
+        <WhatsNewCarousel onClose={handleCloseWhatsNew} />
+      )}
+
+      {/* SW Update Banner — z-index 60, sits above everything except modals */}
+      {showUpdatePrompt && (
+        <div
+          data-ocid="update.banner"
+          style={{
+            position: "fixed",
+            bottom: 80,
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "calc(100% - 32px)",
+            maxWidth: 358,
+            zIndex: 60,
+            background: "#18181b",
+            border: "1px solid #10b981",
+            borderRadius: 16,
+            padding: "14px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            boxShadow:
+              "0 0 20px rgba(16,185,129,0.25), 0 4px 20px rgba(0,0,0,0.5)",
+            fontFamily: "Cairo, Plus Jakarta Sans, Inter, sans-serif",
+          }}
+        >
+          <span style={{ fontSize: 20, flexShrink: 0 }}>✨</span>
+          <p
+            style={{
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 600,
+              flex: 1,
+              margin: 0,
+              lineHeight: 1.4,
+            }}
+          >
+            A new version is available!
+          </p>
+          <button
+            type="button"
+            data-ocid="update.primary_button"
+            onClick={handleRefreshNow}
+            style={{
+              background: "#10b981",
+              color: "#fff",
+              border: "none",
+              borderRadius: 10,
+              padding: "8px 14px",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              flexShrink: 0,
+              fontFamily: "inherit",
+              boxShadow: "0 0 10px rgba(16,185,129,0.4)",
+            }}
+          >
+            Refresh Now
+          </button>
+        </div>
+      )}
+
       <Toaster position="top-center" />
     </div>
   );

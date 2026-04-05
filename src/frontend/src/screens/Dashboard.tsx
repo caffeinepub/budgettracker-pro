@@ -46,6 +46,250 @@ interface DashboardProps {
   savingsGoal: SavingsGoal | null;
   onSetSavingsGoal: (goal: SavingsGoal) => void;
   onAddFundsToGoal: (amount: number) => void;
+  // Quick-tap expenses
+  onQuickTapExpense: (amount: number, label: string, icon: string) => void;
+}
+
+const DEFAULT_CHIPS = [
+  { id: "1", icon: "☕", label: "Coffee", amount: 30 },
+  { id: "2", icon: "🚌", label: "Transport", amount: 10 },
+  { id: "3", icon: "🖨️", label: "Print", amount: 20 },
+];
+
+interface QuickChip {
+  id: string;
+  icon: string;
+  label: string;
+  amount: number;
+}
+
+function QuickTapRow({
+  currentUser,
+  sym,
+  onTap,
+}: {
+  currentUser: string | null;
+  sym: string;
+  onTap: (amount: number, label: string, icon: string) => void;
+}) {
+  const { t } = useLanguage();
+  const storageKey = currentUser ? `wiz_quick_chips_${currentUser}` : null;
+  const [chips, setChips] = useState<QuickChip[]>(() => {
+    if (!storageKey) return DEFAULT_CHIPS;
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return DEFAULT_CHIPS;
+      }
+    }
+    return DEFAULT_CHIPS;
+  });
+  const [showForm, setShowForm] = useState(false);
+  const [newIcon, setNewIcon] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newAmount, setNewAmount] = useState("");
+
+  const saveChips = (updated: QuickChip[]) => {
+    setChips(updated);
+    if (storageKey) localStorage.setItem(storageKey, JSON.stringify(updated));
+  };
+
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    saveChips(chips.filter((c) => c.id !== id));
+  };
+
+  const handleAdd = () => {
+    const amt = Number.parseFloat(newAmount);
+    if (!newLabel.trim() || Number.isNaN(amt) || amt <= 0) return;
+    const chip: QuickChip = {
+      id: `${Date.now()}`,
+      icon: newIcon.trim() || "💡",
+      label: newLabel.trim(),
+      amount: amt,
+    };
+    saveChips([...chips, chip]);
+    setNewIcon("");
+    setNewLabel("");
+    setNewAmount("");
+    setShowForm(false);
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          overflowX: "auto",
+          gap: 8,
+          paddingBottom: 4,
+          scrollbarWidth: "none",
+        }}
+      >
+        {chips.map((chip) => (
+          <button
+            key={chip.id}
+            type="button"
+            onClick={() => onTap(chip.amount, chip.label, chip.icon)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              flexShrink: 0,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.09)",
+              borderRadius: 999,
+              padding: "7px 10px 7px 12px",
+              fontSize: 12,
+              fontWeight: 600,
+              color: "#e4e4e7",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span>{chip.icon}</span>
+            <span>{chip.label}</span>
+            <span style={{ color: "#a1a1aa" }}>·</span>
+            <span style={{ color: "#10b981" }}>
+              {sym}
+              {chip.amount}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => handleDelete(chip.id, e)}
+              style={{
+                marginLeft: 2,
+                color: "#71717a",
+                fontSize: 11,
+                lineHeight: 1,
+                cursor: "pointer",
+                padding: "0 2px",
+                background: "none",
+                border: "none",
+              }}
+              aria-label={`Remove ${chip.label}`}
+            >
+              ×
+            </button>
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setShowForm((v) => !v)}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            flexShrink: 0,
+            gap: 4,
+            background: "rgba(16,185,129,0.07)",
+            border: "1px solid rgba(16,185,129,0.2)",
+            borderRadius: 999,
+            padding: "7px 14px",
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#10b981",
+            cursor: "pointer",
+          }}
+        >
+          +
+        </button>
+      </div>
+      {showForm && (
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            padding: "10px 12px",
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 16,
+          }}
+        >
+          <input
+            type="text"
+            value={newIcon}
+            onChange={(e) => setNewIcon(e.target.value.slice(0, 2))}
+            placeholder="🏷️"
+            style={{
+              width: 36,
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 8,
+              padding: "6px 6px",
+              color: "#fff",
+              fontSize: 14,
+              textAlign: "center",
+            }}
+          />
+          <input
+            type="text"
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder={t("quick_tap_placeholder_label")}
+            style={{
+              flex: 1,
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 8,
+              padding: "6px 10px",
+              color: "#fff",
+              fontSize: 12,
+              minWidth: 0,
+            }}
+          />
+          <input
+            type="number"
+            value={newAmount}
+            onChange={(e) => setNewAmount(e.target.value)}
+            placeholder={t("quick_tap_placeholder_amount")}
+            style={{
+              width: 64,
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 8,
+              padding: "6px 8px",
+              color: "#fff",
+              fontSize: 12,
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleAdd}
+            style={{
+              background: "#10b981",
+              border: "none",
+              borderRadius: 8,
+              padding: "6px 12px",
+              color: "#fff",
+              fontWeight: 700,
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            {t("quick_tap_add_btn")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowForm(false)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#71717a",
+              fontSize: 16,
+              cursor: "pointer",
+              padding: "0 4px",
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ProgressRing({
@@ -57,6 +301,7 @@ function ProgressRing({
   budget: number;
   currencySymbol: string;
 }) {
+  const { t } = useLanguage();
   const radius = 70;
   const circumference = 2 * Math.PI * radius;
   const pct = budget > 0 ? Math.min(spent / budget, 1) : 0;
@@ -96,10 +341,12 @@ function ProgressRing({
           {spent.toFixed(0)}
         </span>
         <span className="text-xs text-muted-foreground font-medium">
-          of {currencySymbol}
+          {t("dashboard_of_label")} {currencySymbol}
           {budget > 0 ? budget : 0}
         </span>
-        <span className="text-xs text-muted-foreground mt-0.5">spent</span>
+        <span className="text-xs text-muted-foreground mt-0.5">
+          {t("dashboard_spent_label")}
+        </span>
       </div>
     </div>
   );
@@ -262,6 +509,7 @@ function SavingsGoalCard({
   onSetGoal: (g: SavingsGoal) => void;
   onAddFunds: (amount: number) => void;
 }) {
+  const { t } = useLanguage();
   const [settingGoal, setSettingGoal] = useState(false);
   const [goalName, setGoalName] = useState("");
   const [goalTarget, setGoalTarget] = useState("");
@@ -310,7 +558,7 @@ function SavingsGoalCard({
               fontSize: 14,
             }}
           >
-            Savings Goal
+            {t("savings_goal_title")}
           </span>
         </div>
         {goal && (
@@ -341,7 +589,7 @@ function SavingsGoalCard({
           <input
             value={goalName}
             onChange={(e) => setGoalName(e.target.value)}
-            placeholder="Goal name (e.g. New Headphones)"
+            placeholder={t("savings_goal_name_placeholder")}
             data-ocid="dashboard.savings_goal_name.input"
             style={{
               background: "#1a1a1a",
@@ -393,7 +641,7 @@ function SavingsGoalCard({
                 fontFamily: "inherit",
               }}
             >
-              Save Goal
+              {t("savings_goal_save")}
             </button>
             <button
               type="button"
@@ -410,7 +658,7 @@ function SavingsGoalCard({
                 fontFamily: "inherit",
               }}
             >
-              Cancel
+              {t("savings_goal_cancel")}
             </button>
           </div>
         </div>
@@ -431,7 +679,7 @@ function SavingsGoalCard({
           </p>
           {isComplete ? (
             <p style={{ color: "#10b981", fontWeight: 700, fontSize: 15 }}>
-              🎉 Goal Reached!
+              {t("savings_goal_reached")}
             </p>
           ) : (
             <>
@@ -508,7 +756,7 @@ function SavingsGoalCard({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  Add
+                  {t("savings_goal_add_funds_confirm")}
                 </button>
                 <button
                   type="button"
@@ -569,7 +817,7 @@ function SavingsGoalCard({
               fontFamily: "inherit",
             }}
           >
-            + Set a Goal
+            {t("savings_goal_set")}
           </button>
         </>
       )}
@@ -599,6 +847,7 @@ export default function Dashboard({
   savingsGoal,
   onSetSavingsGoal,
   onAddFundsToGoal,
+  onQuickTapExpense,
 }: DashboardProps) {
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
@@ -700,6 +949,27 @@ export default function Dashboard({
             <p className="text-sm font-bold text-foreground leading-tight">
               {displayName}! 👋
             </p>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                marginTop: 3,
+                padding: "2px 10px",
+                borderRadius: 999,
+                fontSize: 10,
+                fontWeight: 700,
+                fontFamily: "'Courier New', 'Roboto Mono', monospace",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "#10b981",
+                background: "rgba(16,185,129,0.08)",
+                border: "1px solid rgba(16,185,129,0.25)",
+                animation: "aura-pulse 2.5s ease-in-out infinite",
+              }}
+            >
+              ◆ AURA: 100
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -865,6 +1135,13 @@ export default function Dashboard({
         </div>
       </div>
 
+      {/* Quick-Tap Expenses */}
+      <QuickTapRow
+        currentUser={currentUser}
+        sym={sym}
+        onTap={onQuickTapExpense}
+      />
+
       {/* Savings Goal Card */}
       <SavingsGoalCard
         goal={savingsGoal}
@@ -929,7 +1206,7 @@ export default function Dashboard({
         className="w-full flex items-center justify-center gap-2 bg-emerald text-white font-bold py-4 rounded-2xl shadow-emerald hover:bg-emerald-dark active:scale-[0.98] transition-all"
       >
         <Plus size={20} />
-        Add Expense
+        {t("dashboard_add_expense")}
       </button>
 
       {/* Search Bar */}
@@ -939,7 +1216,7 @@ export default function Dashboard({
           className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
         />
         <Input
-          placeholder="Search..."
+          placeholder={t("dashboard_search_placeholder")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-9 pr-9 bg-secondary border-0 rounded-2xl text-sm"
@@ -1016,10 +1293,10 @@ export default function Dashboard({
             <span className="text-2xl">👑</span>
             <div>
               <p className="text-white font-bold text-sm">
-                Go VIP — Sync cards &amp; track automatically!
+                {t("dashboard_vip_title")}
               </p>
               <p className="text-white/70 text-xs mt-0.5">
-                No more manual entry. Link your cards now.
+                {t("dashboard_vip_sub")}
               </p>
             </div>
           </div>
@@ -1028,7 +1305,7 @@ export default function Dashboard({
             onClick={onUpgrade}
             className="w-full bg-white text-emerald-dark font-bold text-sm py-3 rounded-xl hover:bg-white/90 active:scale-[0.98] transition-all"
           >
-            Upgrade — $2.50 / 6 months ✨
+            {t("dashboard_upgrade_btn")}
           </button>
         </div>
       )}

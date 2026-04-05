@@ -110,6 +110,19 @@
   transition: stroke-dashoffset 0.8s ease-in-out;
 }
 
+/* Aura badge pulse animation */
+@keyframes aura-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 4px rgba(16, 185, 129, 0.3), 0 0 8px
+      rgba(16, 185, 129, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6), 0 0 18px
+      rgba(16, 185, 129, 0.3), 0 0 30px rgba(16, 185, 129, 0.12);
+  }
+}
+
 /* Card gradient for VIP cards */
 .card-gradient-charcoal {
   background: linear-gradient(135deg, #2c2f33 0%, #454950 100%);
