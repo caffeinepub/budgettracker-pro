@@ -19,10 +19,6 @@ export default defineConfig({
     sourcemap: false,
     minify: false,
   },
-  // Inject build timestamp at compile time so every deploy gets a unique version
-  define: {
-    __BUILD_TS__: JSON.stringify(Date.now().toString()),
-  },
   css: {
     postcss: "./postcss.config.js",
   },

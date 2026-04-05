@@ -29,7 +29,6 @@ const VIP_DURATIONS = [
   { label: "3 Months", days: 90 },
   { label: "6 Months", days: 180 },
   { label: "1 Year", days: 365 },
-  { label: "Custom", days: 0 },
 ];
 
 export default function BudgetSetup({
@@ -88,7 +87,22 @@ export default function BudgetSetup({
       days = found?.days ?? 30;
     }
 
-    onComplete({ amount, durationLabel, durationDays: days, startDate: today });
+    if (selectedLabel === "Custom") {
+      onComplete({
+        amount,
+        durationLabel,
+        durationDays: days,
+        startDate: customStart,
+        endDate: customEnd,
+      });
+    } else {
+      onComplete({
+        amount,
+        durationLabel,
+        durationDays: days,
+        startDate: today,
+      });
+    }
   };
 
   const amount = Number.parseFloat(amountStr);
@@ -278,8 +292,24 @@ export default function BudgetSetup({
             </button>
           )}
 
+          {/* Custom duration — free for all users */}
+          <button
+            type="button"
+            data-ocid="budget_setup.duration.custom.button"
+            onClick={() => handleDurationClick("Custom", false)}
+            className="py-2.5 px-3 rounded-2xl text-sm font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-[0.96] w-full"
+            style={{
+              background: selectedLabel === "Custom" ? "#10b981" : "#1e1e1e",
+              color:
+                selectedLabel === "Custom" ? "#fff" : "rgba(255,255,255,0.7)",
+              border: selectedLabel === "Custom" ? "none" : "1px solid #2a2a2a",
+            }}
+          >
+            📅 Custom Range
+          </button>
+
           {/* Custom date picker */}
-          {selectedLabel === "Custom" && isVIP && (
+          {selectedLabel === "Custom" && (
             <div className="flex flex-col gap-3 pt-1">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs text-white/50">Start Date</Label>

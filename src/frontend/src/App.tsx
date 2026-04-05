@@ -62,6 +62,7 @@ export interface BudgetData {
   durationLabel: string;
   durationDays: number;
   startDate?: string;
+  endDate?: string;
 }
 
 export interface BudgetEntry {
@@ -717,10 +718,15 @@ export default function App() {
     if (alreadyArchived) return;
 
     const today = new Date().toISOString().split("T")[0];
-    const start = new Date(budgetData.startDate);
-    const end = new Date(start);
-    end.setDate(end.getDate() + budgetData.durationDays);
-    const endDateStr = end.toISOString().split("T")[0];
+    let endDateStr: string;
+    if (budgetData.endDate) {
+      endDateStr = budgetData.endDate;
+    } else {
+      const start = new Date(budgetData.startDate);
+      const end = new Date(start);
+      end.setDate(end.getDate() + budgetData.durationDays);
+      endDateStr = end.toISOString().split("T")[0];
+    }
 
     if (endDateStr >= today) return; // cycle not done yet
 

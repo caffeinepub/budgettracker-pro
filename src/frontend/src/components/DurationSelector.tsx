@@ -59,10 +59,6 @@ export default function DurationSelector({
   };
 
   const handleCustomClick = () => {
-    if (!isVIP) {
-      setShowUpgradeDialog(true);
-      return;
-    }
     setShowCustom(true);
     onChange(null);
   };
@@ -122,26 +118,15 @@ export default function DurationSelector({
             className={`relative flex flex-col items-center justify-center gap-1 px-2 py-3 rounded-xl text-xs font-semibold border transition-all ${
               isCustomSelected
                 ? "bg-emerald text-white border-emerald shadow-emerald"
-                : !isVIP
-                  ? "bg-background text-muted-foreground border-border opacity-60"
-                  : "bg-background text-body border-border hover:border-emerald/40"
+                : "bg-background text-body border-border hover:border-emerald/40"
             }`}
           >
-            {!isVIP && (
-              <Lock
-                size={10}
-                className="absolute top-1.5 right-1.5 text-muted-foreground"
-              />
-            )}
             <span>Custom</span>
-            {!isVIP && (
-              <span className="text-[10px] text-yellow-500 font-bold">VIP</span>
-            )}
           </button>
         </div>
 
         {/* Custom date pickers */}
-        {showCustom && isVIP && (
+        {showCustom && (
           <div className="flex flex-col gap-3 p-3 rounded-xl bg-background border border-border">
             <div className="flex flex-col gap-1">
               <Label className="text-xs text-muted-foreground">
@@ -172,7 +157,7 @@ export default function DurationSelector({
               disabled={!startDate || !endDate || endDate <= startDate}
               className="w-full bg-emerald text-white rounded-xl hover:bg-emerald-dark"
             >
-              Apply Custom Range
+              Apply
             </Button>
           </div>
         )}
