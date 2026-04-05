@@ -12,9 +12,11 @@ import {
   Search,
   Settings,
   Sun,
+  Trash2,
   X,
 } from "lucide-react";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import type { BudgetData, BudgetEntry, SavingsGoal } from "../App";
 import { useInstallPrompt } from "../hooks/useInstallPrompt";
 import type { Expense, ScheduledExpense } from "../types/expense";
@@ -48,6 +50,11 @@ interface DashboardProps {
   onAddFundsToGoal: (amount: number) => void;
   // Quick-tap expenses
   onQuickTapExpense: (amount: number, label: string, icon: string) => void;
+  onDeleteExpense: (id: string) => void;
+  onEditExpense: (
+    id: string,
+    updates: { amount: number; category: string; notes: string },
+  ) => void;
 }
 
 const DEFAULT_CHIPS = [
@@ -848,9 +855,16 @@ export default function Dashboard({
   onSetSavingsGoal,
   onAddFundsToGoal,
   onQuickTapExpense,
+  onDeleteExpense,
+  onEditExpense,
 }: DashboardProps) {
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
+  const [editTarget, setEditTarget] = useState<Expense | null>(null);
+  const [editAmount, setEditAmount] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editNotes, setEditNotes] = useState("");
   const {
     showBanner: showInstallBanner,
     install,
@@ -1254,9 +1268,9 @@ export default function Dashboard({
               <li
                 key={exp.id}
                 data-ocid={`dashboard.expenses.item.${i + 1}`}
-                className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-background transition-colors"
+                className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-background transition-colors group"
               >
-                <span className="text-xl w-8 h-8 flex items-center justify-center bg-background rounded-xl">
+                <span className="text-xl w-8 h-8 flex items-center justify-center bg-background rounded-xl flex-shrink-0">
                   {getCategoryIcon(exp.category)}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -1276,15 +1290,442 @@ export default function Dashboard({
                     {exp.notes || exp.date}
                   </p>
                 </div>
-                <span className="text-sm font-bold text-foreground">
+                <span className="text-sm font-bold text-foreground mr-1">
                   {sym}
                   {exp.amount.toFixed(2)}
                 </span>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    type="button"
+                    aria-label={t("tx_edit")}
+                    onClick={() => {
+                      setEditTarget(exp);
+                      setEditAmount(String(exp.amount));
+                      setEditCategory(exp.category);
+                      setEditNotes(exp.notes || "");
+                    }}
+                    style={{
+                      background: "rgba(99,102,241,0.10)",
+                      border: "1px solid rgba(99,102,241,0.25)",
+                      borderRadius: 8,
+                      padding: "5px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#818cf8",
+                    }}
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t("tx_delete")}
+                    onClick={() => setDeleteTarget(exp)}
+                    style={{
+                      background: "rgba(220,38,38,0.10)",
+                      border: "1px solid rgba(220,38,38,0.25)",
+                      borderRadius: 8,
+                      padding: "5px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#f87171",
+                    }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {/* ── Delete Confirmation Modal ── */}
+      {deleteTarget && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(0,0,0,0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+          onClick={() => setDeleteTarget(null)}
+          onKeyDown={(e) => e.key === "Escape" && setDeleteTarget(null)}
+          role="presentation"
+          tabIndex={-1}
+        >
+          <div
+            style={{
+              background: "#141414",
+              border: "1px solid #2a2a2a",
+              borderRadius: 20,
+              padding: "24px",
+              maxWidth: 340,
+              width: "100%",
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginBottom: 12,
+              }}
+            >
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: "rgba(220,38,38,0.15)",
+                  border: "1px solid rgba(220,38,38,0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Trash2 size={17} color="#f87171" />
+              </div>
+              <h3
+                style={{
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 15,
+                  margin: 0,
+                }}
+              >
+                {t("tx_delete_confirm_title")}
+              </h3>
+            </div>
+            <p
+              style={{
+                color: "#9ca3af",
+                fontSize: 13,
+                lineHeight: 1.6,
+                marginBottom: 20,
+              }}
+            >
+              {t("tx_delete_confirm_msg")}
+            </p>
+            <div
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid #2a2a2a",
+                borderRadius: 12,
+                padding: "10px 14px",
+                marginBottom: 20,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span style={{ color: "#9ca3af", fontSize: 13 }}>
+                {deleteTarget.category}
+              </span>
+              <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>
+                {sym}
+                {deleteTarget.amount.toFixed(2)}
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid #2a2a2a",
+                  color: "#9ca3af",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {t("tx_delete_confirm_no")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteExpense(deleteTarget.id);
+                  setDeleteTarget(null);
+                  toast.success(t("tx_deleted_toast"), { duration: 2000 });
+                }}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  background: "rgba(220,38,38,0.85)",
+                  border: "none",
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {t("tx_delete_confirm_yes")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Transaction Modal ── */}
+      {editTarget && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(0,0,0,0.75)",
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "center",
+          }}
+          onClick={() => setEditTarget(null)}
+          onKeyDown={(e) => e.key === "Escape" && setEditTarget(null)}
+          role="presentation"
+          tabIndex={-1}
+        >
+          <div
+            style={{
+              background: "#141414",
+              border: "1px solid #2a2a2a",
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              padding: "24px 20px 32px",
+              width: "100%",
+              maxWidth: 480,
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginBottom: 20,
+              }}
+            >
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  background: "rgba(99,102,241,0.15)",
+                  border: "1px solid rgba(99,102,241,0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Pencil size={17} color="#818cf8" />
+              </div>
+              <h3
+                style={{
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 15,
+                  margin: 0,
+                }}
+              >
+                {t("tx_edit_title")}
+              </h3>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Amount */}
+              <div>
+                <label
+                  htmlFor="edit-amount"
+                  style={{
+                    color: "#9ca3af",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    display: "block",
+                    marginBottom: 6,
+                  }}
+                >
+                  {t("tx_edit_amount")}
+                </label>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    background: "#1a1a1a",
+                    border: "1px solid #2a2a2a",
+                    borderRadius: 12,
+                    padding: "0 14px",
+                    height: 48,
+                  }}
+                >
+                  <span
+                    style={{
+                      color: "#9ca3af",
+                      fontWeight: 700,
+                      fontSize: 16,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {sym}
+                  </span>
+                  <input
+                    id="edit-amount"
+                    type="number"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(e.target.value)}
+                    style={{
+                      flex: 1,
+                      background: "transparent",
+                      border: "none",
+                      outline: "none",
+                      color: "#fff",
+                      fontSize: 20,
+                      fontWeight: 800,
+                    }}
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+
+              {/* Category */}
+              <div>
+                <label
+                  htmlFor="edit-category"
+                  style={{
+                    color: "#9ca3af",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    display: "block",
+                    marginBottom: 6,
+                  }}
+                >
+                  {t("tx_edit_category")}
+                </label>
+                <input
+                  id="edit-category"
+                  type="text"
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  style={{
+                    width: "100%",
+                    height: 48,
+                    background: "#1a1a1a",
+                    border: "1px solid #2a2a2a",
+                    borderRadius: 12,
+                    padding: "0 14px",
+                    color: "#fff",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label
+                  htmlFor="edit-notes"
+                  style={{
+                    color: "#9ca3af",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    display: "block",
+                    marginBottom: 6,
+                  }}
+                >
+                  {t("tx_edit_notes")}
+                </label>
+                <input
+                  id="edit-notes"
+                  type="text"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  style={{
+                    width: "100%",
+                    height: 48,
+                    background: "#1a1a1a",
+                    border: "1px solid #2a2a2a",
+                    borderRadius: 12,
+                    padding: "0 14px",
+                    color: "#fff",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <button
+                type="button"
+                onClick={() => setEditTarget(null)}
+                style={{
+                  flex: 1,
+                  height: 48,
+                  borderRadius: 12,
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid #2a2a2a",
+                  color: "#9ca3af",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {t("tx_edit_cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const newAmt = Number.parseFloat(editAmount);
+                  if (
+                    Number.isNaN(newAmt) ||
+                    newAmt <= 0 ||
+                    !editCategory.trim()
+                  )
+                    return;
+                  onEditExpense(editTarget.id, {
+                    amount: newAmt,
+                    category: editCategory.trim(),
+                    notes: editNotes.trim(),
+                  });
+                  setEditTarget(null);
+                  toast.success(t("tx_updated_toast"), { duration: 2000 });
+                }}
+                style={{
+                  flex: 1,
+                  height: 48,
+                  borderRadius: 12,
+                  background: "#10b981",
+                  border: "none",
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {t("tx_edit_save")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* VIP Upgrade Banner */}
       {!isVIP && (

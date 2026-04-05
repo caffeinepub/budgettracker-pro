@@ -27,10 +27,25 @@ import {
   triggerImmediateNotificationIfNeeded,
 } from "./utils/notifications";
 
-// Injected at build time by Vite
+// Injected at build time by Vite (see vite.config.js → define.__BUILD_TS__)
+// The declare tells TypeScript the global exists; Vite replaces it with the
+// actual timestamp string at compile time.
 declare const __BUILD_TS__: string;
 
-const APP_VERSION = __BUILD_TS__;
+// Resolve APP_VERSION with a runtime fallback so the modal never misbehaves
+// even if the build-time injection somehow fails (e.g. local dev without Vite).
+//   - typeof guard: prevents ReferenceError if __BUILD_TS__ is not defined at all
+//   - truthy + numeric check: rejects "undefined", "", or non-timestamp garbage
+//   - fallback "dev": treated as a valid version string so the modal won't
+//     fire on every refresh in local dev, but WILL fire on the first real deploy
+const _rawBuildTs =
+  typeof __BUILD_TS__ !== "undefined" &&
+  __BUILD_TS__ &&
+  /^\d+$/.test(__BUILD_TS__)
+    ? __BUILD_TS__
+    : "dev";
+
+const APP_VERSION: string = _rawBuildTs;
 
 export type Screen =
   | "dashboard"
@@ -1094,8 +1109,16 @@ export default function App() {
   };
 
   const checkAndShowWhatsNew = () => {
-    if (localStorage.getItem("wiz_seen_version") !== APP_VERSION) {
-      setShowWhatsNew(true);
+    // Guard: never show the modal if we're running in an unknown version state.
+    // APP_VERSION === "dev" means the build-time injection failed; skip silently.
+    if (APP_VERSION === "dev") return;
+    try {
+      const seen = localStorage.getItem("wiz_seen_version");
+      if (seen !== APP_VERSION) {
+        setShowWhatsNew(true);
+      }
+    } catch {
+      // localStorage unavailable (e.g. private browsing with storage blocked) — skip silently
     }
   };
 
@@ -1136,7 +1159,16 @@ export default function App() {
   };
 
   const handleCloseWhatsNew = () => {
-    localStorage.setItem("wiz_seen_version", APP_VERSION);
+    // Only persist the version if it's a real build timestamp.
+    // Writing "dev" or "undefined" here would suppress the modal forever
+    // on the next real deploy, which is the worst possible failure mode.
+    try {
+      if (APP_VERSION !== "dev") {
+        localStorage.setItem("wiz_seen_version", APP_VERSION);
+      }
+    } catch {
+      // localStorage write failed — not fatal, modal may re-show next launch
+    }
     setShowWhatsNew(false);
   };
 
@@ -1210,6 +1242,37 @@ export default function App() {
     );
   };
 
+  const handleDeleteExpense = (id: string) => {
+    const storageKey = activeBudgetId ?? currentUser;
+    if (!storageKey) return;
+    setExpenses((prev) => {
+      const next = prev.filter((e) => e.id !== id);
+      saveExpenses(storageKey, next);
+      return next;
+    });
+  };
+
+  const handleEditExpense = (
+    id: string,
+    updates: { amount: number; category: string; notes: string },
+  ) => {
+    const storageKey = activeBudgetId ?? currentUser;
+    if (!storageKey) return;
+    setExpenses((prev) => {
+      const next = prev.map((e) =>
+        e.id === id
+          ? {
+              ...e,
+              amount: updates.amount,
+              category: updates.category,
+              notes: updates.notes,
+            }
+          : e,
+      );
+      saveExpenses(storageKey, next);
+      return next;
+    });
+  };
   const renderScreen = () => {
     switch (currentScreen) {
       case "dashboard":
@@ -1237,6 +1300,8 @@ export default function App() {
             onSetSavingsGoal={handleSetSavingsGoal}
             onAddFundsToGoal={handleAddFundsToGoal}
             onQuickTapExpense={handleQuickTapExpense}
+            onDeleteExpense={handleDeleteExpense}
+            onEditExpense={handleEditExpense}
           />
         );
       case "add":

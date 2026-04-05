@@ -32,6 +32,7 @@ import {
 } from "../types/expense";
 
 const DEFAULT_CATEGORIES = [
+  "Rent",
   "Transportation",
   "Food",
   "Lab Supplies",

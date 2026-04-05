@@ -53,6 +53,7 @@ export interface ScheduledExpense {
 }
 
 export const CATEGORY_ICONS: Record<string, string> = {
+  Rent: "🏠",
   Transportation: "🚗",
   Food: "🍔",
   "Lab Supplies": "🔬",
@@ -65,6 +66,7 @@ export const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {
+  Rent: "#f97316",
   Transportation: "#10b981",
   Food: "#f59e0b",
   "Lab Supplies": "#3b82f6",

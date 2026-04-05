@@ -178,6 +178,23 @@ export const translations = {
     currency_usd: "USD ($)",
     currency_eur: "EUR (€)",
     currency_sar: "SAR (ر.س)",
+    // Transaction actions
+    tx_delete: "Delete",
+    tx_edit: "Edit",
+    tx_delete_confirm_title: "Delete Transaction",
+    tx_delete_confirm_msg:
+      "Are you sure you want to delete this transaction? The amount will be restored to your balance.",
+    tx_delete_confirm_yes: "Yes, Delete",
+    tx_delete_confirm_no: "Cancel",
+    tx_edit_title: "Edit Transaction",
+    tx_edit_amount: "Amount",
+    tx_edit_category: "Category",
+    tx_edit_notes: "Notes",
+    tx_edit_save: "Save Changes",
+    tx_edit_cancel: "Cancel",
+    tx_deleted_toast: "Transaction deleted",
+    category_rent: "Rent",
+    tx_updated_toast: "Transaction updated",
   },
   ar: {
     onboarding_welcome: "أهلاً بك في WIZ",
@@ -354,6 +371,23 @@ export const translations = {
     currency_usd: "$ (USD)",
     currency_eur: "€ (EUR)",
     currency_sar: "ر.س (SAR)",
+    // Transaction actions
+    tx_delete: "حذف",
+    tx_edit: "تعديل",
+    tx_delete_confirm_title: "حذف المعاملة",
+    tx_delete_confirm_msg:
+      "هل أنت متأكد من حذف هذه المعاملة؟ سيتم استعادة المبلغ لرصيدك.",
+    tx_delete_confirm_yes: "نعم، احذف",
+    tx_delete_confirm_no: "إلغاء",
+    tx_edit_title: "تعديل المعاملة",
+    tx_edit_amount: "المبلغ",
+    tx_edit_category: "الفئة",
+    tx_edit_notes: "ملاحظات",
+    tx_edit_save: "حفظ التغييرات",
+    tx_edit_cancel: "إلغاء",
+    tx_deleted_toast: "تم حذف المعاملة",
+    category_rent: "الإيجار",
+    tx_updated_toast: "تم تحديث المعاملة",
   },
 } as const;
 
