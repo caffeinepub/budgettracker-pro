@@ -6,6 +6,7 @@ import AddExpense from "./screens/AddExpense";
 import Analytics from "./screens/Analytics";
 import BudgetSetup from "./screens/BudgetSetup";
 import Dashboard from "./screens/Dashboard";
+import DebtScreen from "./screens/DebtScreen";
 import LinkedCards from "./screens/LinkedCards";
 import OnboardingScreen from "./screens/OnboardingScreen";
 import SettingsScreen from "./screens/SettingsScreen";
@@ -51,7 +52,7 @@ export type Screen =
   | "dashboard"
   | "add"
   | "analytics"
-  | "cards"
+  | "debts"
   | "vip"
   | "settings"
   | "upcoming";
@@ -138,6 +139,39 @@ function loadArchivedCycles(user: string): ArchivedCycle[] {
 
 function saveArchivedCycles(user: string, cycles: ArchivedCycle[]) {
   localStorage.setItem(`wiz_archived_cycles_${user}`, JSON.stringify(cycles));
+}
+
+function computeAuraScore(cycles: ArchivedCycle[]): number {
+  if (!cycles || cycles.length === 0) return 0;
+
+  // Sort cycles by archivedAt ascending (oldest first) for correct streak calc
+  const sorted = [...cycles].sort(
+    (a, b) =>
+      new Date(a.archivedAt).getTime() - new Date(b.archivedAt).getTime(),
+  );
+
+  let score = 0;
+  let consecutiveUnderBudget = 0;
+
+  for (const cycle of sorted) {
+    const savedAmount = cycle.savedAmount ?? cycle.amount - cycle.totalSpent;
+    if (savedAmount > 0) {
+      // Under budget: +10 base, +5 streak bonus for consecutive cycles
+      score += 10;
+      if (consecutiveUnderBudget > 0) {
+        score += 5; // consistency bonus
+      }
+      consecutiveUnderBudget++;
+    } else {
+      // Over budget: -5, reset streak
+      score -= 5;
+      consecutiveUnderBudget = 0;
+    }
+    // Hard floor at 0
+    if (score < 0) score = 0;
+  }
+
+  return score;
 }
 
 function applySmartCategories(expenses: Expense[]): {
@@ -588,7 +622,7 @@ export default function App() {
   const [scheduledExpenses, setScheduledExpenses] = useState<
     ScheduledExpense[]
   >([]);
-  const [aiTrackingEnabled, setAiTrackingEnabled] = useState(false);
+  const [_aiTrackingEnabled, _setAiTrackingEnabled] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [budget, setBudget] = useState<BudgetData | null>(null);
   const [darkMode, setDarkMode] = useState(
@@ -610,10 +644,18 @@ export default function App() {
   // Savings goal
   const [savingsGoal, setSavingsGoalState] = useState<SavingsGoal | null>(null);
 
+  // Aura score
+  const [auraScore, setAuraScore] = useState<number>(0);
+
   // Archived cycles & cycle completed modal
   const [archivedCycles, setArchivedCycles] = useState<ArchivedCycle[]>([]);
   const [pendingCycleCompletion, setPendingCycleCompletion] =
     useState<ArchivedCycle | null>(null);
+
+  // Recompute aura score whenever archived cycles change
+  useEffect(() => {
+    setAuraScore(computeAuraScore(archivedCycles));
+  }, [archivedCycles]);
 
   // ─── SW Update Prompt ────────────────────────────────────────────────────
   const waitingWorkerRef = useRef<ServiceWorker | null>(null);
@@ -755,6 +797,7 @@ export default function App() {
     const updated = [archived, ...existingArchived].slice(0, 12);
     saveArchivedCycles(user, updated);
     setArchivedCycles(updated);
+    setAuraScore(computeAuraScore(updated));
     setPendingCycleCompletion(archived);
   };
 
@@ -1099,6 +1142,7 @@ export default function App() {
     // Load archived cycles
     const archived = loadArchivedCycles(name);
     setArchivedCycles(archived);
+    setAuraScore(computeAuraScore(archived));
 
     // Check budget lifecycle for active budget
     if (activeBudget) {
@@ -1308,6 +1352,7 @@ export default function App() {
             onQuickTapExpense={handleQuickTapExpense}
             onDeleteExpense={handleDeleteExpense}
             onEditExpense={handleEditExpense}
+            auraScore={auraScore}
           />
         );
       case "add":
@@ -1331,15 +1376,8 @@ export default function App() {
             archivedCycles={archivedCycles}
           />
         );
-      case "cards":
-        return (
-          <LinkedCards
-            isVIP={isVIP}
-            aiTrackingEnabled={aiTrackingEnabled}
-            onToggleAI={setAiTrackingEnabled}
-            onUpgrade={() => setCurrentScreen("vip")}
-          />
-        );
+      case "debts":
+        return <DebtScreen currentUser={currentUser} currency={currency} />;
       case "vip":
         return (
           <VIPUpgrade

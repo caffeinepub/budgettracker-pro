@@ -157,6 +157,17 @@ export function generateScheduledInstances(
   return instances;
 }
 
+export interface DebtEntry {
+  id: string;
+  type: "owed_to_me" | "owed_by_me";
+  personName: string;
+  amount: number;
+  note: string;
+  settled: boolean;
+  settledAt?: string;
+  createdAt: string;
+}
+
 export const SEED_EXPENSES: Expense[] = [
   {
     id: "1",

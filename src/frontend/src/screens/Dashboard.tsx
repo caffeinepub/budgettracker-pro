@@ -55,6 +55,7 @@ interface DashboardProps {
     id: string,
     updates: { amount: number; category: string; notes: string },
   ) => void;
+  auraScore?: number;
 }
 
 const DEFAULT_CHIPS = [
@@ -857,6 +858,7 @@ export default function Dashboard({
   onQuickTapExpense,
   onDeleteExpense,
   onEditExpense,
+  auraScore = 0,
 }: DashboardProps) {
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
@@ -963,27 +965,52 @@ export default function Dashboard({
             <p className="text-sm font-bold text-foreground leading-tight">
               {displayName}! 👋
             </p>
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                marginTop: 3,
-                padding: "2px 10px",
-                borderRadius: 999,
-                fontSize: 10,
-                fontWeight: 700,
-                fontFamily: "'Courier New', 'Roboto Mono', monospace",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "#10b981",
-                background: "rgba(16,185,129,0.08)",
-                border: "1px solid rgba(16,185,129,0.25)",
-                animation: "aura-pulse 2.5s ease-in-out infinite",
-              }}
-            >
-              ◆ AURA: 100
-            </span>
+            {(() => {
+              const glowStyle =
+                auraScore >= 200
+                  ? {
+                      boxShadow:
+                        "0 0 24px rgba(16,185,129,0.9), 0 0 40px rgba(16,185,129,0.4)",
+                      border: "1px solid rgba(16,185,129,0.8)",
+                    }
+                  : auraScore >= 100
+                    ? {
+                        boxShadow: "0 0 16px rgba(16,185,129,0.6)",
+                        border: "1px solid rgba(16,185,129,0.5)",
+                      }
+                    : auraScore >= 50
+                      ? {
+                          boxShadow: "0 0 10px rgba(16,185,129,0.4)",
+                          border: "1px solid rgba(16,185,129,0.35)",
+                        }
+                      : {
+                          boxShadow: "0 0 6px rgba(16,185,129,0.2)",
+                          border: "1px solid rgba(16,185,129,0.25)",
+                        };
+              return (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    marginTop: 3,
+                    padding: "2px 10px",
+                    borderRadius: 999,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    fontFamily: "'Courier New', 'Roboto Mono', monospace",
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    color: "#10b981",
+                    background: "rgba(16,185,129,0.08)",
+                    animation: "aura-pulse 2.5s ease-in-out infinite",
+                    ...glowStyle,
+                  }}
+                >
+                  ◆ {t("aura_label")}: {auraScore}
+                </span>
+              );
+            })()}
           </div>
         </div>
         <div className="flex items-center gap-1.5">

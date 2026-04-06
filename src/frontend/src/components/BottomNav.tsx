@@ -1,10 +1,10 @@
 import {
   BarChart2,
   CalendarClock,
-  CreditCard,
   Home,
   PlusCircle,
   Star,
+  Wallet,
 } from "lucide-react";
 import type { Screen } from "../App";
 import { useLanguage } from "../utils/i18n";
@@ -33,7 +33,7 @@ export default function BottomNav({
     { id: "add", labelKey: "nav_add", icon: PlusCircle },
     { id: "upcoming", labelKey: "nav_upcoming", icon: CalendarClock },
     { id: "analytics", labelKey: "nav_analytics", icon: BarChart2 },
-    { id: "cards", labelKey: "cards_title", icon: CreditCard },
+    { id: "debts", labelKey: "nav_debts", icon: Wallet },
     { id: "vip", labelKey: "vip_title", icon: Star },
   ];
 
@@ -48,7 +48,6 @@ export default function BottomNav({
           const Icon = tab.icon;
           const isActive = current === tab.id;
           const isVIPTab = tab.id === "vip";
-          const isCardsTab = tab.id === "cards";
           const isUpcomingTab = tab.id === "upcoming";
           return (
             <button
@@ -66,11 +65,6 @@ export default function BottomNav({
             >
               <div className="relative">
                 <Icon size={18} className={isActive ? "text-emerald" : ""} />
-                {isCardsTab && !isVIP && (
-                  <span className="absolute -top-1 -right-1 text-[8px]">
-                    🔒
-                  </span>
-                )}
                 {isUpcomingTab && scheduledCount > 0 && (
                   <span
                     className="absolute -top-1.5 -right-2 text-[9px] font-bold px-1 rounded-full"

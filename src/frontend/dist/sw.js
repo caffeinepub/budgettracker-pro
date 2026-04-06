@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wiz-offline-v6';
+const CACHE_NAME = 'wiz-offline-v7';
 
 // Core app-shell assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -8,14 +8,14 @@ const PRECACHE_URLS = [
   '/assets/uploads/IMG_20260323_010002-1.png',
 ];
 
-// ─── INSTALL: pre-cache the app shell ────────────────────────────────────────
-// NOTE: skipWaiting() is intentionally NOT called here.
-// The new SW will enter the 'waiting' state so the app can detect the update
-// and show the user an 'Update Available' prompt before reloading.
+// ─── INSTALL: pre-cache the app shell & activate immediately ─────────────────
+// skipWaiting() ensures the new SW activates right away without waiting for
+// all tabs to close — users always get the latest version on next page load.
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
   );
+  self.skipWaiting();
 });
 
 // ─── ACTIVATE: remove stale caches & claim all open tabs ─────────────────────
