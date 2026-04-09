@@ -1,4 +1,4 @@
-import { Download, FileText, Lock, TrendingUp } from "lucide-react";
+import { Download, FileText, Lock, Trash2, TrendingUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   Bar,
@@ -16,6 +16,7 @@ import type { ArchivedCycle } from "../App";
 import type { Expense } from "../types/expense";
 import { getCategoryColor, getCategoryIcon } from "../types/expense";
 import { type Currency, getCurrencySymbol } from "../utils/currency";
+import { useLanguage } from "../utils/i18n";
 
 const RED = "#E50914";
 
@@ -26,6 +27,7 @@ interface AnalyticsProps {
   currency: Currency;
   darkMode?: boolean;
   archivedCycles?: ArchivedCycle[];
+  onDeleteArchivedCycle?: (archivedAt: string) => void;
 }
 
 type TimePeriod = "week" | "month" | "custom";
@@ -327,12 +329,16 @@ export default function Analytics({
   currency,
   darkMode = false,
   archivedCycles = [],
+  onDeleteArchivedCycle,
 }: AnalyticsProps) {
   const [activeTab, setActiveTab] = useState<"summary" | "insights">("summary");
   const [period, setPeriod] = useState<TimePeriod>("month");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedCycleIdx, setSelectedCycleIdx] = useState<number | null>(null);
+  const [deleteCycleTarget, setDeleteCycleTarget] =
+    useState<ArchivedCycle | null>(null);
+  const { t } = useLanguage();
   const sym = getCurrencySymbol(currency);
 
   // Theme tokens
@@ -1152,16 +1158,13 @@ export default function Analytics({
                 {archivedCycles.map((cycle, idx) => {
                   const label = `${cycle.budgetName} · ${new Date(cycle.endDate).toLocaleDateString("en-US", { month: "short", year: "2-digit" })}`;
                   return (
-                    <button
+                    <div
                       key={cycle.archivedAt}
-                      type="button"
-                      onClick={() => setSelectedCycleIdx(idx)}
                       style={{
+                        display: "inline-flex",
+                        alignItems: "center",
                         flexShrink: 0,
-                        padding: "6px 14px",
                         borderRadius: 999,
-                        fontSize: 12,
-                        fontWeight: 700,
                         border: "1px solid",
                         background:
                           selectedCycleIdx === idx
@@ -1171,14 +1174,53 @@ export default function Analytics({
                           selectedCycleIdx === idx
                             ? "#dc2626"
                             : "rgba(255,255,255,0.08)",
-                        color: selectedCycleIdx === idx ? "#fff" : "#a1a1aa",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                        whiteSpace: "nowrap",
+                        overflow: "hidden",
                       }}
                     >
-                      {label}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCycleIdx(idx)}
+                        style={{
+                          padding: "6px 10px 6px 14px",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          background: "transparent",
+                          border: "none",
+                          color: selectedCycleIdx === idx ? "#fff" : "#a1a1aa",
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {label}
+                      </button>
+                      {onDeleteArchivedCycle && (
+                        <button
+                          type="button"
+                          aria-label={`Delete cycle ${label}`}
+                          data-ocid={`analytics.cycle_delete.${idx + 1}.button`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteCycleTarget(cycle);
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "6px 8px",
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            color:
+                              selectedCycleIdx === idx
+                                ? "rgba(255,255,255,0.7)"
+                                : "#ef4444",
+                          }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -1424,6 +1466,167 @@ export default function Analytics({
           caffeine.ai
         </a>
       </div>
+
+      {/* ── Delete Archived Cycle Modal ── */}
+      {deleteCycleTarget && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(0,0,0,0.80)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+          onClick={() => setDeleteCycleTarget(null)}
+          onKeyDown={(e) => e.key === "Escape" && setDeleteCycleTarget(null)}
+          role="presentation"
+          tabIndex={-1}
+          data-ocid="analytics.cycle_delete.modal"
+        >
+          <div
+            style={{
+              background: "#141414",
+              border: "1px solid #2a2a2a",
+              borderRadius: 20,
+              padding: "24px",
+              maxWidth: 340,
+              width: "100%",
+              fontFamily: "Cairo, Plus Jakarta Sans, Inter, sans-serif",
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {/* Icon + title */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: 14,
+              }}
+            >
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  background: "rgba(220,38,38,0.15)",
+                  border: "1px solid rgba(220,38,38,0.35)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Trash2 size={18} color="#f87171" />
+              </div>
+              <h3
+                style={{
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 16,
+                  margin: 0,
+                }}
+              >
+                {t("budget_delete_title")}
+              </h3>
+            </div>
+
+            {/* Warning message */}
+            <p
+              style={{
+                color: "#9ca3af",
+                fontSize: 13,
+                lineHeight: 1.65,
+                marginBottom: 16,
+              }}
+            >
+              {t("budget_delete_warning")}
+            </p>
+
+            {/* Cycle name preview */}
+            <div
+              style={{
+                background: "rgba(220,38,38,0.06)",
+                border: "1px solid rgba(220,38,38,0.2)",
+                borderRadius: 12,
+                padding: "10px 14px",
+                marginBottom: 20,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Trash2 size={14} color="#f87171" style={{ flexShrink: 0 }} />
+              <span style={{ color: "#f87171", fontWeight: 700, fontSize: 14 }}>
+                {deleteCycleTarget.budgetName} ·{" "}
+                {new Date(deleteCycleTarget.endDate).toLocaleDateString(
+                  "en-US",
+                  { month: "short", year: "numeric" },
+                )}
+              </span>
+            </div>
+
+            {/* Buttons */}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                data-ocid="analytics.cycle_delete.cancel_button"
+                onClick={() => setDeleteCycleTarget(null)}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid #2a2a2a",
+                  color: "#9ca3af",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {t("tx_delete_confirm_no")}
+              </button>
+              <button
+                type="button"
+                data-ocid="analytics.cycle_delete.confirm_button"
+                onClick={() => {
+                  if (onDeleteArchivedCycle) {
+                    onDeleteArchivedCycle(deleteCycleTarget.archivedAt);
+                  }
+                  // If the deleted cycle was selected, reset to current
+                  if (
+                    selectedCycleIdx !== null &&
+                    archivedCycles[selectedCycleIdx]?.archivedAt ===
+                      deleteCycleTarget.archivedAt
+                  ) {
+                    setSelectedCycleIdx(null);
+                  }
+                  setDeleteCycleTarget(null);
+                }}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  background: "#dc2626",
+                  border: "none",
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {t("budget_delete_confirm")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

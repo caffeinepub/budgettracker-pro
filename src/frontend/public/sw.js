@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wiz-offline-v8';
+const CACHE_NAME = 'wiz-offline-v9';
 
 // Core app-shell assets to pre-cache on install
 const PRECACHE_URLS = [

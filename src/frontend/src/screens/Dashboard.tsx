@@ -17,6 +17,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { animate, motion, useMotionValue, useTransform } from "motion/react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import type { BudgetData, BudgetEntry, SavingsGoal } from "../App";
@@ -58,6 +59,7 @@ interface DashboardProps {
     updates: { amount: number; category: string; notes: string },
   ) => void;
   auraScore?: number;
+  onDeleteBudget: (id: string) => void;
 }
 
 const DEFAULT_CHIPS = [
@@ -368,11 +370,13 @@ function BudgetSwitcher({
   activeBudgetId,
   onSwitch,
   onCreate,
+  onDelete,
 }: {
   budgets: BudgetEntry[];
   activeBudgetId: string | null;
   onSwitch: (id: string) => void;
   onCreate: (name: string) => void;
+  onDelete: (id: string, name: string) => void;
 }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -401,7 +405,10 @@ function BudgetSwitcher({
             onClick={() => onSwitch(b.id)}
             style={{
               flexShrink: 0,
-              padding: "6px 14px",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 10px 6px 14px",
               borderRadius: 999,
               fontSize: 12,
               fontWeight: 700,
@@ -417,7 +424,33 @@ function BudgetSwitcher({
               whiteSpace: "nowrap",
             }}
           >
-            {b.name}
+            <span>{b.name}</span>
+            <button
+              type="button"
+              aria-label={`Delete ${b.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(b.id, b.name);
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "1px 2px",
+                marginLeft: 2,
+                borderRadius: 4,
+                cursor: "pointer",
+                background: "none",
+                border: "none",
+                color:
+                  b.id === activeBudgetId
+                    ? "rgba(255,255,255,0.75)"
+                    : "#ef4444",
+                flexShrink: 0,
+              }}
+            >
+              <Trash2 size={14} />
+            </button>
           </button>
         ))}
         {creating ? (
@@ -835,6 +868,232 @@ function SavingsGoalCard({
   );
 }
 
+// ─── Swipeable Expense Item ──────────────────────────────────────────────────
+// Renders a single transaction row with swipe-to-reveal Edit / Delete panels.
+// Left swipe → Delete (red), Right swipe → Edit (emerald).
+// In RTL mode the directions are flipped.
+function SwipeableExpenseItem({
+  exp,
+  sym,
+  onEdit,
+  onDelete,
+  isRTL,
+  t,
+  dataOcid,
+}: {
+  exp: import("../types/expense").Expense;
+  sym: string;
+  onEdit: (e: import("../types/expense").Expense) => void;
+  onDelete: (e: import("../types/expense").Expense) => void;
+  isRTL: boolean;
+  t: (key: import("../utils/i18n").TranslationKey) => string;
+  dataOcid: string;
+}) {
+  const REVEAL = 80; // max drag distance in px
+
+  const x = useMotionValue(0);
+
+  // Edit panel opacity: visible when dragging right (LTR) or left (RTL)
+  const editOpacity = useTransform(
+    x,
+    isRTL ? [-REVEAL, 0] : [0, REVEAL],
+    [1, 0],
+  );
+  // Delete panel opacity: visible when dragging left (LTR) or right (RTL)
+  const deleteOpacity = useTransform(
+    x,
+    isRTL ? [0, REVEAL] : [-REVEAL, 0],
+    [1, 0],
+  );
+
+  const snapBack = () =>
+    animate(x, 0, { type: "spring", stiffness: 300, damping: 30 });
+
+  const handleEditTap = () => {
+    snapBack();
+    onEdit(exp);
+  };
+
+  const handleDeleteTap = () => {
+    snapBack();
+    onDelete(exp);
+  };
+
+  return (
+    <li
+      data-ocid={dataOcid}
+      style={{ position: "relative", overflow: "hidden", borderRadius: 12 }}
+    >
+      {/* Edit action panel — sits behind item on the appropriate side */}
+      <motion.button
+        type="button"
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          left: isRTL ? "auto" : 0,
+          right: isRTL ? 0 : "auto",
+          width: REVEAL,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+          flexDirection: "column",
+          background: "rgba(16,185,129,0.15)",
+          borderRadius: 12,
+          border: "none",
+          cursor: "pointer",
+          opacity: editOpacity,
+          padding: 0,
+        }}
+        aria-label={t("tx_edit")}
+        onClick={handleEditTap}
+      >
+        <Pencil size={18} color="#10b981" />
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: "#10b981",
+            letterSpacing: "0.04em",
+          }}
+        >
+          {t("tx_edit")}
+        </span>
+      </motion.button>
+
+      {/* Delete action panel — sits behind item on the appropriate side */}
+      <motion.button
+        type="button"
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          right: isRTL ? "auto" : 0,
+          left: isRTL ? 0 : "auto",
+          width: REVEAL,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+          flexDirection: "column",
+          background: "rgba(220,38,38,0.15)",
+          borderRadius: 12,
+          border: "none",
+          cursor: "pointer",
+          opacity: deleteOpacity,
+          padding: 0,
+        }}
+        aria-label={t("tx_delete")}
+        onClick={handleDeleteTap}
+      >
+        <Trash2 size={18} color="#dc2626" />
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: "#dc2626",
+            letterSpacing: "0.04em",
+          }}
+        >
+          {t("tx_delete")}
+        </span>
+      </motion.button>
+
+      {/* Draggable item row */}
+      <motion.div
+        drag="x"
+        dragConstraints={{
+          left: isRTL ? 0 : -REVEAL,
+          right: isRTL ? REVEAL : REVEAL,
+        }}
+        dragElastic={0.1}
+        dragDirectionLock
+        style={{
+          x,
+          position: "relative",
+          zIndex: 1,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "10px",
+          borderRadius: 12,
+          background: "oklch(var(--card))",
+          cursor: "grab",
+          touchAction: "pan-y",
+          userSelect: "none",
+        }}
+        onDragEnd={() => snapBack()}
+        whileTap={{ cursor: "grabbing" }}
+      >
+        <span
+          style={{
+            fontSize: 20,
+            width: 32,
+            height: 32,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "oklch(var(--background))",
+            borderRadius: 12,
+            flexShrink: 0,
+          }}
+        >
+          {getCategoryIcon(exp.category)}
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: "oklch(var(--foreground))",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            {exp.category}
+            {exp.recurring && (
+              <RefreshCw
+                size={10}
+                style={{ color: "#10b981", flexShrink: 0 }}
+              />
+            )}
+          </p>
+          <p
+            style={{
+              fontSize: 12,
+              color: "oklch(var(--muted-foreground))",
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            {exp.paymentMethod && (
+              <span>{PAYMENT_METHOD_ICONS[exp.paymentMethod]}</span>
+            )}
+            {exp.notes || exp.date}
+          </p>
+        </div>
+        <span
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: "oklch(var(--foreground))",
+            flexShrink: 0,
+          }}
+        >
+          {sym}
+          {exp.amount.toFixed(2)}
+        </span>
+      </motion.div>
+    </li>
+  );
+}
+
 export default function Dashboard({
   expenses,
   scheduledExpenses,
@@ -861,8 +1120,9 @@ export default function Dashboard({
   onDeleteExpense,
   onEditExpense,
   auraScore = 0,
+  onDeleteBudget,
 }: DashboardProps) {
-  const { t } = useLanguage();
+  const { t, isRTL } = useLanguage();
   const [search, setSearch] = useState("");
   const [showAllExpenses, setShowAllExpenses] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
@@ -870,6 +1130,10 @@ export default function Dashboard({
   const [editAmount, setEditAmount] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [deleteBudgetTarget, setDeleteBudgetTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const {
     showBanner: showInstallBanner,
     install,
@@ -1064,6 +1328,7 @@ export default function Dashboard({
           activeBudgetId={activeBudgetId}
           onSwitch={onSwitchBudget}
           onCreate={onCreateBudget}
+          onDelete={(id, name) => setDeleteBudgetTarget({ id, name })}
         />
       )}
 
@@ -1281,9 +1546,20 @@ export default function Dashboard({
 
       {/* Recent Expenses */}
       <div className="bg-card rounded-3xl shadow-card p-4">
-        <h2 className="text-sm font-bold text-foreground mb-3">
-          {search ? `Results for "${search}"` : t("dashboard_recent")}
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-foreground">
+            {search ? `Results for "${search}"` : t("dashboard_recent")}
+          </h2>
+          <span
+            style={{
+              fontSize: 10,
+              color: "oklch(var(--muted-foreground))",
+              letterSpacing: "0.03em",
+            }}
+          >
+            ← {t("tx_delete")} · {t("tx_edit")} →
+          </span>
+        </div>
         {filteredExpenses.length === 0 ? (
           <p
             className="text-center text-muted-foreground text-sm py-4"
@@ -1294,83 +1570,25 @@ export default function Dashboard({
         ) : (
           <ul
             className="flex flex-col gap-2"
-            style={{ transition: "all 0.3s ease" }}
+            style={{ transition: "all 0.3s ease", touchAction: "pan-y" }}
             data-ocid="dashboard.expenses.list"
           >
             {filteredExpenses.map((exp, i) => (
-              <li
+              <SwipeableExpenseItem
                 key={exp.id}
-                data-ocid={`dashboard.expenses.item.${i + 1}`}
-                className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-background transition-colors group"
-              >
-                <span className="text-xl w-8 h-8 flex items-center justify-center bg-background rounded-xl flex-shrink-0">
-                  {getCategoryIcon(exp.category)}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate flex items-center gap-1.5">
-                    {exp.category}
-                    {exp.recurring && (
-                      <RefreshCw
-                        size={10}
-                        className="text-emerald flex-shrink-0"
-                      />
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    {exp.paymentMethod && (
-                      <span>{PAYMENT_METHOD_ICONS[exp.paymentMethod]}</span>
-                    )}
-                    {exp.notes || exp.date}
-                  </p>
-                </div>
-                <span className="text-sm font-bold text-foreground mr-1">
-                  {sym}
-                  {exp.amount.toFixed(2)}
-                </span>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    type="button"
-                    aria-label={t("tx_edit")}
-                    onClick={() => {
-                      setEditTarget(exp);
-                      setEditAmount(String(exp.amount));
-                      setEditCategory(exp.category);
-                      setEditNotes(exp.notes || "");
-                    }}
-                    style={{
-                      background: "rgba(99,102,241,0.10)",
-                      border: "1px solid rgba(99,102,241,0.25)",
-                      borderRadius: 8,
-                      padding: "5px",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#818cf8",
-                    }}
-                  >
-                    <Pencil size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={t("tx_delete")}
-                    onClick={() => setDeleteTarget(exp)}
-                    style={{
-                      background: "rgba(220,38,38,0.10)",
-                      border: "1px solid rgba(220,38,38,0.25)",
-                      borderRadius: 8,
-                      padding: "5px",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#f87171",
-                    }}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              </li>
+                exp={exp}
+                sym={sym}
+                isRTL={isRTL}
+                t={t}
+                dataOcid={`dashboard.expenses.item.${i + 1}`}
+                onEdit={(e) => {
+                  setEditTarget(e);
+                  setEditAmount(String(e.amount));
+                  setEditCategory(e.category);
+                  setEditNotes(e.notes || "");
+                }}
+                onDelete={(e) => setDeleteTarget(e)}
+              />
             ))}
           </ul>
         )}
@@ -1552,6 +1770,156 @@ export default function Dashboard({
                 }}
               >
                 {t("tx_delete_confirm_yes")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Budget Delete Confirmation Modal ── */}
+      {deleteBudgetTarget && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(0,0,0,0.80)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+          onClick={() => setDeleteBudgetTarget(null)}
+          onKeyDown={(e) => e.key === "Escape" && setDeleteBudgetTarget(null)}
+          role="presentation"
+          tabIndex={-1}
+          data-ocid="dashboard.budget_delete.modal"
+        >
+          <div
+            style={{
+              background: "#141414",
+              border: "1px solid #2a2a2a",
+              borderRadius: 20,
+              padding: "24px",
+              maxWidth: 340,
+              width: "100%",
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {/* Icon + title */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: 14,
+              }}
+            >
+              <div
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: "50%",
+                  background: "rgba(220,38,38,0.15)",
+                  border: "1px solid rgba(220,38,38,0.35)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Trash2 size={18} color="#f87171" />
+              </div>
+              <h3
+                style={{
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 16,
+                  margin: 0,
+                }}
+              >
+                {t("budget_delete_title")}
+              </h3>
+            </div>
+
+            {/* Warning message */}
+            <p
+              style={{
+                color: "#9ca3af",
+                fontSize: 13,
+                lineHeight: 1.65,
+                marginBottom: 16,
+              }}
+            >
+              {t("budget_delete_warning")}
+            </p>
+
+            {/* Budget name preview */}
+            <div
+              style={{
+                background: "rgba(220,38,38,0.06)",
+                border: "1px solid rgba(220,38,38,0.2)",
+                borderRadius: 12,
+                padding: "10px 14px",
+                marginBottom: 20,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Trash2 size={14} color="#f87171" style={{ flexShrink: 0 }} />
+              <span
+                style={{
+                  color: "#f87171",
+                  fontWeight: 700,
+                  fontSize: 14,
+                }}
+              >
+                {deleteBudgetTarget.name}
+              </span>
+            </div>
+
+            {/* Buttons */}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                data-ocid="dashboard.budget_delete.cancel_button"
+                onClick={() => setDeleteBudgetTarget(null)}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid #2a2a2a",
+                  color: "#9ca3af",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {t("tx_delete_confirm_no")}
+              </button>
+              <button
+                type="button"
+                data-ocid="dashboard.budget_delete.confirm_button"
+                onClick={() => {
+                  onDeleteBudget(deleteBudgetTarget.id);
+                  setDeleteBudgetTarget(null);
+                }}
+                style={{
+                  flex: 1,
+                  height: 44,
+                  borderRadius: 12,
+                  background: "#dc2626",
+                  border: "none",
+                  color: "#fff",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {t("budget_delete_confirm")}
               </button>
             </div>
           </div>

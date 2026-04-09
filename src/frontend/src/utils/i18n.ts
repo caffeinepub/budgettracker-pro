@@ -92,6 +92,18 @@ export const translations = {
     cycle_budget_label: "Budget",
     cycle_spent_label: "Spent",
     cycle_saved_label: "Saved",
+    cycle_review_title: "Cycle Review",
+    cycle_net_savings: "Net Savings",
+    cycle_under_budget: "Under budget! 🎉",
+    cycle_over_budget: "Over budget",
+    cycle_top_category: "Top Category",
+    cycle_top_category_pct: "% of spending",
+    cycle_aura_impact: "Aura Impact",
+    cycle_aura_earned: "Points earned this cycle!",
+    cycle_aura_lost: "Points lost this cycle",
+    cycle_aura_new_total: "New Aura Score:",
+    cycle_archive_start: "Archive & Start New Cycle",
+    cycle_date_range: "Budget Period",
     // Dashboard misc
     dashboard_add_expense: "Add Expense",
     dashboard_search_placeholder: "Search...",
@@ -222,6 +234,13 @@ export const translations = {
     // View All / Show Less
     view_all: "View All",
     show_less: "Show Less",
+    // Budget delete
+    budget_delete_title: "Delete Budget?",
+    budget_delete_warning:
+      "Are you sure you want to permanently delete this budget and ALL its transactions? This cannot be undone.",
+    budget_delete_confirm: "Delete Budget",
+    budget_deleted_success: "Budget deleted successfully",
+    budget_deleted_archived: "Archived cycle removed",
   },
   ar: {
     onboarding_welcome: "أهلاً بك في WIZ",
@@ -314,6 +333,18 @@ export const translations = {
     cycle_budget_label: "الميزانية",
     cycle_spent_label: "المصروف",
     cycle_saved_label: "الموفّر",
+    cycle_review_title: "مراجعة الدورة",
+    cycle_net_savings: "صافي التوفير",
+    cycle_under_budget: "دون الميزانية! 🎉",
+    cycle_over_budget: "تجاوز الميزانية",
+    cycle_top_category: "أعلى فئة إنفاق",
+    cycle_top_category_pct: "٪ من الإنفاق",
+    cycle_aura_impact: "تأثير الأورا",
+    cycle_aura_earned: "نقاط مكتسبة هذه الدورة!",
+    cycle_aura_lost: "نقاط مفقودة هذه الدورة",
+    cycle_aura_new_total: "رصيد الأورا الجديد:",
+    cycle_archive_start: "أرشفة وبدء دورة جديدة",
+    cycle_date_range: "فترة الميزانية",
     // Dashboard misc
     dashboard_add_expense: "إضافة مصروف",
     dashboard_search_placeholder: "بحث...",
@@ -442,6 +473,13 @@ export const translations = {
     // View All / Show Less
     view_all: "عرض الكل",
     show_less: "عرض أقل",
+    // Budget delete
+    budget_delete_title: "حذف الميزانية؟",
+    budget_delete_warning:
+      "هل أنت متأكد أنك تريد حذف هذه الميزانية وجميع معاملاتها بشكل نهائي؟ لا يمكن التراجع عن هذا.",
+    budget_delete_confirm: "حذف الميزانية",
+    budget_deleted_success: "تم حذف الميزانية بنجاح",
+    budget_deleted_archived: "تمت إزالة الدورة المؤرشفة",
   },
 } as const;
 

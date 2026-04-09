@@ -87,6 +87,10 @@ export interface ArchivedCycle {
   savedAmount: number;
   expenses: Expense[];
   archivedAt: string;
+  topCategory: string;
+  topCategoryAmount: number;
+  topCategoryPercent: number;
+  auraPointsDelta: number;
 }
 
 function getBudget(key: string): BudgetData | null {
@@ -452,19 +456,52 @@ function WhatsNewCarousel({
   );
 }
 
-// ─── Cycle Completed Modal ─────────────────────────────────────────────────
+// ─── Cycle Review Modal ────────────────────────────────────────────────────
 function CycleCompletedModal({
   cycle,
+  auraScore,
   onStartNewCycle,
-  onViewHistory,
   lang,
 }: {
   cycle: ArchivedCycle;
+  auraScore: number;
   onStartNewCycle: () => void;
-  onViewHistory: () => void;
   lang: string;
 }) {
   const isAr = lang === "ar";
+
+  const t = (key: string, fallback: string) => {
+    const map: Record<string, { en: string; ar: string }> = {
+      cycle_review_title: { en: "Cycle Review", ar: "مراجعة الدورة" },
+      cycle_date_range: { en: "Budget Period", ar: "فترة الميزانية" },
+      cycle_budget_label: { en: "Total Budget", ar: "إجمالي الميزانية" },
+      cycle_spent_label: { en: "Total Spent", ar: "إجمالي المصروف" },
+      cycle_net_savings: { en: "Net Savings", ar: "صافي التوفير" },
+      cycle_under_budget: { en: "Under budget! 🎉", ar: "دون الميزانية! 🎉" },
+      cycle_over_budget: { en: "Over budget", ar: "تجاوز الميزانية" },
+      cycle_top_category: { en: "Top Category", ar: "أعلى فئة إنفاق" },
+      cycle_top_category_pct: { en: "% of spending", ar: "٪ من الإنفاق" },
+      cycle_aura_impact: { en: "Aura Impact", ar: "تأثير الأورا" },
+      cycle_aura_earned: {
+        en: "Points earned this cycle!",
+        ar: "نقاط مكتسبة هذه الدورة!",
+      },
+      cycle_aura_lost: {
+        en: "Points lost this cycle",
+        ar: "نقاط مفقودة هذه الدورة",
+      },
+      cycle_aura_new_total: {
+        en: "New Aura Score:",
+        ar: "رصيد الأورا الجديد:",
+      },
+      cycle_archive_start: {
+        en: "Archive & Start New Cycle",
+        ar: "أرشفة وبدء دورة جديدة",
+      },
+    };
+    if (map[key]) return isAr ? map[key].ar : map[key].en;
+    return fallback;
+  };
 
   const fmtDate = (d: string) => {
     try {
@@ -478,137 +515,380 @@ function CycleCompletedModal({
     }
   };
 
-  const stats = [
-    {
-      label: isAr ? "الميزانية" : "Budget",
-      value: cycle.amount.toFixed(0),
-      color: "#a1a1aa",
-    },
-    {
-      label: isAr ? "المصروف" : "Spent",
-      value: cycle.totalSpent.toFixed(0),
-      color: "#ef4444",
-    },
-    {
-      label: isAr ? "الموفّر" : "Saved",
-      value: cycle.savedAmount.toFixed(0),
-      color: "#10b981",
-    },
-  ];
+  const fmtNum = (n: number) =>
+    isAr
+      ? n.toLocaleString("ar-EG", { maximumFractionDigits: 0 })
+      : n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+
+  const isUnder = cycle.savedAmount >= 0;
+  const delta = cycle.auraPointsDelta ?? (isUnder ? 10 : -5);
+  const topCatName = cycle.topCategory || "—";
+  const topCatPct = cycle.topCategoryPercent ?? 0;
+
+  // Translate category name
+  const catKeyMap: Record<string, { en: string; ar: string }> = {
+    food: { en: "Food", ar: "طعام" },
+    transport: { en: "Transport", ar: "مواصلات" },
+    entertainment: { en: "Entertainment", ar: "ترفيه" },
+    health: { en: "Health", ar: "صحة" },
+    shopping: { en: "Shopping", ar: "تسوق" },
+    rent: { en: "Rent", ar: "الإيجار" },
+    savings: { en: "Savings", ar: "ادخار" },
+    education: { en: "Education", ar: "تعليم" },
+    bills: { en: "Bills", ar: "فواتير" },
+    other: { en: "Other", ar: "أخرى" },
+  };
+  const catKey = topCatName.toLowerCase().replace(/\s+/g, "_");
+  const translatedCat = catKeyMap[catKey]?.[isAr ? "ar" : "en"] || topCatName;
+
+  // Category emoji map
+  const catEmoji: Record<string, string> = {
+    Food: "🍔",
+    Transport: "🚌",
+    Entertainment: "🎬",
+    Health: "💊",
+    Shopping: "🛍️",
+    Rent: "🏠",
+    Savings: "💰",
+    Education: "📚",
+    Bills: "📄",
+    Other: "📦",
+  };
+  const catIcon = catEmoji[topCatName] ?? "📊";
 
   return (
     <div
-      className="fixed inset-0 z-[55] flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.85)" }}
+      className="fixed inset-0 flex flex-col"
+      style={{ background: "rgba(0,0,0,0.97)", zIndex: 60 }}
       data-ocid="cycle_completed.dialog"
     >
       <div
+        className="flex-1 overflow-y-auto"
         style={{
-          background: "#18181b",
-          border: "1px solid #3f3f46",
-          borderRadius: 22,
-          padding: "28px 24px 24px",
-          width: "100%",
-          maxWidth: 360,
           fontFamily: "Cairo, Plus Jakarta Sans, Inter, sans-serif",
         }}
       >
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <div style={{ fontSize: 40, marginBottom: 10 }}>🎉</div>
-          <h2
-            style={{
-              color: "#fff",
-              fontWeight: 800,
-              fontSize: 20,
-              margin: 0,
-            }}
-          >
-            {isAr ? "اكتملت الدورة!" : "Cycle Completed!"}
-          </h2>
-          <p style={{ color: "#71717a", fontSize: 12, marginTop: 6 }}>
-            {cycle.budgetName} · {fmtDate(cycle.startDate)} –{" "}
-            {fmtDate(cycle.endDate)}
-          </p>
-        </div>
-
-        {/* Stats */}
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 10,
-            marginBottom: 20,
+            maxWidth: 420,
+            margin: "0 auto",
+            padding: "40px 20px 24px",
+            minHeight: "100%",
+            display: "flex",
+            flexDirection: "column",
+            gap: 20,
           }}
         >
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
+          {/* Header */}
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 48, marginBottom: 12, lineHeight: 1 }}>
+              📊
+            </div>
+            <h1
               style={{
-                background: "#1a1a1a",
-                borderRadius: 14,
-                padding: "12px 8px",
-                textAlign: "center",
+                color: "#fff",
+                fontWeight: 900,
+                fontSize: 24,
+                margin: "0 0 8px",
+                letterSpacing: "-0.02em",
               }}
             >
-              <div
+              {t("cycle_review_title", "Cycle Review")}
+            </h1>
+            <p
+              style={{
+                color: "#a1a1aa",
+                fontSize: 13,
+                margin: 0,
+                fontWeight: 500,
+              }}
+            >
+              <span style={{ color: "#10b981" }}>{cycle.budgetName}</span>
+              {" · "}
+              {fmtDate(cycle.startDate)} – {fmtDate(cycle.endDate)}
+            </p>
+          </div>
+
+          {/* Stats 2×2 Grid */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+            }}
+          >
+            {/* Card: Total Budget */}
+            <div
+              style={{
+                background: "#18181b",
+                border: "1px solid #3f3f46",
+                borderRadius: 16,
+                padding: "16px 14px",
+                textAlign: isAr ? "right" : "left",
+              }}
+            >
+              <p
                 style={{
-                  fontSize: 18,
-                  fontWeight: 800,
-                  color: stat.color,
+                  color: "#71717a",
+                  fontSize: 11,
+                  margin: "0 0 6px",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
                 }}
               >
-                {stat.value}
-              </div>
-              <div style={{ fontSize: 10, color: "#71717a", marginTop: 3 }}>
-                {stat.label}
-              </div>
+                {t("cycle_budget_label", "Total Budget")}
+              </p>
+              <p
+                style={{
+                  color: "#e4e4e7",
+                  fontSize: 22,
+                  fontWeight: 800,
+                  margin: 0,
+                }}
+              >
+                {fmtNum(cycle.amount)}
+              </p>
             </div>
-          ))}
-        </div>
 
-        {/* Buttons */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <button
-            type="button"
-            data-ocid="cycle_completed.confirm_button"
-            onClick={onStartNewCycle}
+            {/* Card: Total Spent */}
+            <div
+              style={{
+                background: "#18181b",
+                border: `1px solid ${isUnder ? "#3f3f46" : "#ef444450"}`,
+                borderRadius: 16,
+                padding: "16px 14px",
+                textAlign: isAr ? "right" : "left",
+              }}
+            >
+              <p
+                style={{
+                  color: "#71717a",
+                  fontSize: 11,
+                  margin: "0 0 6px",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                }}
+              >
+                {t("cycle_spent_label", "Total Spent")}
+              </p>
+              <p
+                style={{
+                  color: isUnder ? "#e4e4e7" : "#ef4444",
+                  fontSize: 22,
+                  fontWeight: 800,
+                  margin: 0,
+                }}
+              >
+                {fmtNum(cycle.totalSpent)}
+              </p>
+            </div>
+
+            {/* Card: Net Savings */}
+            <div
+              style={{
+                background: "#18181b",
+                border: `1px solid ${isUnder ? "#10b98140" : "#ef444440"}`,
+                borderRadius: 16,
+                padding: "16px 14px",
+                textAlign: isAr ? "right" : "left",
+              }}
+            >
+              <p
+                style={{
+                  color: "#71717a",
+                  fontSize: 11,
+                  margin: "0 0 6px",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                }}
+              >
+                {t("cycle_net_savings", "Net Savings")}
+              </p>
+              <p
+                style={{
+                  color: isUnder ? "#10b981" : "#ef4444",
+                  fontSize: 22,
+                  fontWeight: 800,
+                  margin: "0 0 4px",
+                }}
+              >
+                {isUnder ? "+" : "-"}
+                {fmtNum(Math.abs(cycle.savedAmount))}
+              </p>
+              <p
+                style={{
+                  color: isUnder ? "#10b981" : "#ef4444",
+                  fontSize: 11,
+                  margin: 0,
+                  fontWeight: 600,
+                }}
+              >
+                {isUnder
+                  ? t("cycle_under_budget", "Under budget! 🎉")
+                  : t("cycle_over_budget", "Over budget")}
+              </p>
+            </div>
+
+            {/* Card: Top Category */}
+            <div
+              style={{
+                background: "#18181b",
+                border: "1px solid #3f3f46",
+                borderRadius: 16,
+                padding: "16px 14px",
+                textAlign: isAr ? "right" : "left",
+              }}
+            >
+              <p
+                style={{
+                  color: "#71717a",
+                  fontSize: 11,
+                  margin: "0 0 6px",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                }}
+              >
+                {t("cycle_top_category", "Top Category")}
+              </p>
+              <p
+                style={{
+                  color: "#e4e4e7",
+                  fontSize: 18,
+                  fontWeight: 800,
+                  margin: "0 0 4px",
+                }}
+              >
+                {catIcon} {translatedCat}
+              </p>
+              <p style={{ color: "#71717a", fontSize: 11, margin: 0 }}>
+                {topCatPct}
+                {t("cycle_top_category_pct", "% of spending")}
+              </p>
+            </div>
+          </div>
+
+          {/* Aura Impact Section */}
+          <div
             style={{
-              width: "100%",
-              background: "#10b981",
-              color: "#fff",
-              border: "none",
-              borderRadius: 14,
-              padding: "14px",
-              fontSize: 15,
-              fontWeight: 800,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              boxShadow: "0 0 12px rgba(16,185,129,0.3)",
+              background: "#0d1f18",
+              border: "1px solid #10b981",
+              borderRadius: 20,
+              padding: "20px 18px",
+              boxShadow:
+                "0 0 24px rgba(16,185,129,0.15), inset 0 0 24px rgba(16,185,129,0.04)",
+              textAlign: "center",
             }}
           >
-            {isAr ? "🚀 بدء دورة جديدة" : "🚀 Start New Cycle"}
-          </button>
-          <button
-            type="button"
-            data-ocid="cycle_completed.cancel_button"
-            onClick={onViewHistory}
-            style={{
-              width: "100%",
-              background: "transparent",
-              color: "#9ca3af",
-              border: "1px solid #3f3f46",
-              borderRadius: 14,
-              padding: "12px",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            {isAr ? "عرض السجل" : "View History"}
-          </button>
+            <p
+              style={{
+                color: "#10b981",
+                fontSize: 12,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                margin: "0 0 12px",
+              }}
+            >
+              {t("cycle_aura_impact", "Aura Impact")}
+            </p>
+
+            {/* Points delta */}
+            <p
+              style={{
+                fontSize: 52,
+                fontWeight: 900,
+                margin: "0 0 4px",
+                lineHeight: 1,
+                color: delta >= 0 ? "#10b981" : "#ef4444",
+                textShadow:
+                  delta >= 0
+                    ? "0 0 20px rgba(16,185,129,0.7), 0 0 40px rgba(16,185,129,0.4)"
+                    : "0 0 20px rgba(239,68,68,0.7), 0 0 40px rgba(239,68,68,0.4)",
+                letterSpacing: "-0.02em",
+              }}
+            >
+              {delta >= 0 ? "+" : ""}
+              {delta}
+            </p>
+
+            <p
+              style={{
+                color: delta >= 0 ? "#6ee7b7" : "#fca5a5",
+                fontSize: 13,
+                fontWeight: 600,
+                margin: "0 0 14px",
+              }}
+            >
+              {delta >= 0
+                ? t("cycle_aura_earned", "Points earned this cycle!")
+                : t("cycle_aura_lost", "Points lost this cycle")}
+            </p>
+
+            {/* Divider */}
+            <div
+              style={{
+                width: "100%",
+                height: 1,
+                background: "#10b98130",
+                margin: "0 0 14px",
+              }}
+            />
+
+            {/* New total */}
+            <p style={{ color: "#a1a1aa", fontSize: 13, margin: 0 }}>
+              {t("cycle_aura_new_total", "New Aura Score:")}{" "}
+              <span
+                style={{
+                  color: "#10b981",
+                  fontWeight: 800,
+                  fontSize: 16,
+                  textShadow: "0 0 10px rgba(16,185,129,0.5)",
+                }}
+              >
+                {fmtNum(auraScore)}
+              </span>
+            </p>
+          </div>
         </div>
+      </div>
+
+      {/* Sticky Action Button */}
+      <div
+        style={{
+          padding: "16px 20px",
+          background: "rgba(10,10,10,0.95)",
+          borderTop: "1px solid #27272a",
+          maxWidth: 420,
+          width: "100%",
+          margin: "0 auto",
+        }}
+      >
+        <button
+          type="button"
+          data-ocid="cycle_completed.confirm_button"
+          onClick={onStartNewCycle}
+          style={{
+            width: "100%",
+            background: "#10b981",
+            color: "#fff",
+            border: "none",
+            borderRadius: 16,
+            padding: "16px",
+            fontSize: 16,
+            fontWeight: 800,
+            cursor: "pointer",
+            fontFamily: "Cairo, Plus Jakarta Sans, Inter, sans-serif",
+            boxShadow:
+              "0 0 20px rgba(16,185,129,0.4), 0 4px 16px rgba(16,185,129,0.2)",
+            letterSpacing: "0.01em",
+          }}
+        >
+          {t("cycle_archive_start", "Archive & Start New Cycle")}
+        </button>
       </div>
     </div>
   );
@@ -759,27 +1039,63 @@ export default function App() {
     );
     if (alreadyArchived) return;
 
-    const today = new Date().toISOString().split("T")[0];
-    let endDateStr: string;
-    if (budgetData.endDate) {
-      endDateStr = budgetData.endDate;
-    } else {
-      const start = new Date(budgetData.startDate);
-      const end = new Date(start);
-      end.setDate(end.getDate() + budgetData.durationDays);
-      endDateStr = end.toISOString().split("T")[0];
+    // Compute end date — prefer stored endDate, else calculate from startDate + durationDays
+    const endDate = budgetData.endDate
+      ? new Date(budgetData.endDate)
+      : new Date(
+          new Date(budgetData.startDate).getTime() +
+            budgetData.durationDays * 24 * 60 * 60 * 1000,
+        );
+
+    // Compare against midnight today to avoid time-of-day false negatives
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    if (endDate > today) return; // cycle not done yet
+
+    const endDateStr = endDate.toISOString().split("T")[0];
+
+    // Compute spent from expenses within this cycle's date range
+    const cycleExpenses = currentExpenses.filter(
+      (e) => e.date >= (budgetData.startDate as string) && e.date <= endDateStr,
+    );
+    const totalSpent = cycleExpenses.reduce((s, e) => s + e.amount, 0);
+    const savedAmount = budgetData.amount - totalSpent;
+
+    // Calculate top spending category
+    const categoryTotals: Record<string, number> = {};
+    for (const e of cycleExpenses) {
+      const cat = e.category || "Other";
+      categoryTotals[cat] = (categoryTotals[cat] ?? 0) + e.amount;
     }
+    let topCategory = "Other";
+    let topCategoryAmount = 0;
+    for (const [cat, amt] of Object.entries(categoryTotals)) {
+      if (amt > topCategoryAmount) {
+        topCategoryAmount = amt;
+        topCategory = cat;
+      }
+    }
+    const topCategoryPercent =
+      totalSpent > 0 ? Math.round((topCategoryAmount / totalSpent) * 100) : 0;
 
-    if (endDateStr >= today) return; // cycle not done yet
-
-    // Compute spent from past expenses
-    const totalSpent = currentExpenses
-      .filter(
-        (e) =>
-          e.date >= (budgetData.startDate as string) && e.date <= endDateStr,
-      )
-      .reduce((s, e) => s + e.amount, 0);
-    const savedAmount = Math.max(0, budgetData.amount - totalSpent);
+    // Calculate aura points delta for this cycle
+    // Check consecutive under-budget streak from existing archive (oldest first)
+    const sortedExisting = [...existingArchived].sort(
+      (a, b) =>
+        new Date(a.archivedAt).getTime() - new Date(b.archivedAt).getTime(),
+    );
+    let streak = 0;
+    for (let i = sortedExisting.length - 1; i >= 0; i--) {
+      const c = sortedExisting[i];
+      const cSaved = c.savedAmount ?? c.amount - c.totalSpent;
+      if (cSaved >= 0) streak++;
+      else break;
+    }
+    const basePoints = savedAmount >= 0 ? 10 : -5;
+    const streakBonus = savedAmount >= 0 && streak > 0 ? streak * 5 : 0;
+    const auraPointsDelta = basePoints + streakBonus;
 
     const archived: ArchivedCycle = {
       budgetId,
@@ -789,14 +1105,19 @@ export default function App() {
       amount: budgetData.amount,
       totalSpent,
       savedAmount,
-      expenses: currentExpenses,
+      expenses: [...currentExpenses], // copy, not reference
       archivedAt: new Date().toISOString(),
+      topCategory,
+      topCategoryAmount,
+      topCategoryPercent,
+      auraPointsDelta,
     };
 
-    // Save to archived cycles (cap at 12)
+    // Save to archived cycles (cap at 12) BEFORE showing modal
     const updated = [archived, ...existingArchived].slice(0, 12);
     saveArchivedCycles(user, updated);
     setArchivedCycles(updated);
+    // Recompute aura AFTER archiving so "New Aura Score" in modal is accurate
     setAuraScore(computeAuraScore(updated));
     setPendingCycleCompletion(archived);
   };
@@ -942,22 +1263,67 @@ export default function App() {
 
   const deleteBudget = (id: string) => {
     if (!currentUser) return;
+
+    // Remove from budgets list
     const updated = budgets.filter((b) => b.id !== id);
     setBudgets(updated);
     localStorage.setItem(`wiz_budgets_${currentUser}`, JSON.stringify(updated));
+
+    // Remove all budget-specific data
     localStorage.removeItem(`wiz_budget_${id}`);
     localStorage.removeItem(`wiz_expenses_${id}`);
     localStorage.removeItem(`wiz_scheduled_${id}`);
-    if (updated.length > 0) {
-      switchBudget(updated[0].id);
-    } else {
-      setActiveBudgetId(null);
-      setExpenses([]);
-      setScheduledExpenses([]);
-      setBudget(null);
+
+    // Remove any archived cycles that belong to this budget
+    const remainingCycles = archivedCycles.filter((c) => c.budgetId !== id);
+    if (remainingCycles.length !== archivedCycles.length) {
+      saveArchivedCycles(currentUser, remainingCycles);
+      setArchivedCycles(remainingCycles);
     }
+
+    // Was this the active budget?
+    if (activeBudgetId === id) {
+      localStorage.removeItem(`wiz_active_budget_${currentUser}`);
+      if (updated.length > 0) {
+        // Switch to first remaining budget
+        const nextId = updated[0].id;
+        localStorage.setItem(`wiz_active_budget_${currentUser}`, nextId);
+        setActiveBudgetId(nextId);
+        const freshExpenses = loadBudgetData(nextId);
+        const savedBudget = getBudget(nextId);
+        setBudget(savedBudget);
+        if (savedBudget) {
+          const budgetName =
+            updated.find((b) => b.id === nextId)?.name ?? "Budget";
+          checkBudgetLifecycle(
+            nextId,
+            budgetName,
+            savedBudget,
+            freshExpenses,
+            currentUser,
+          );
+        }
+      } else {
+        // No budgets left — redirect to budget setup
+        setActiveBudgetId(null);
+        setBudget(null);
+        setExpenses([]);
+        setScheduledExpenses([]);
+        setPendingCycleCompletion(null);
+        setAppState("budget-setup");
+      }
+    }
+
+    toast.success("Budget deleted successfully");
   };
-  void deleteBudget;
+
+  const deleteArchivedCycle = (archivedAt: string) => {
+    if (!currentUser) return;
+    const remaining = archivedCycles.filter((c) => c.archivedAt !== archivedAt);
+    saveArchivedCycles(currentUser, remaining);
+    setArchivedCycles(remaining);
+    toast.success("Archived cycle removed");
+  };
 
   const handleSetSavingsGoal = (goal: SavingsGoal) => {
     if (!currentUser) return;
@@ -1353,6 +1719,7 @@ export default function App() {
             onDeleteExpense={handleDeleteExpense}
             onEditExpense={handleEditExpense}
             auraScore={auraScore}
+            onDeleteBudget={deleteBudget}
           />
         );
       case "add":
@@ -1374,6 +1741,7 @@ export default function App() {
             currency={currency}
             darkMode={darkMode}
             archivedCycles={archivedCycles}
+            onDeleteArchivedCycle={deleteArchivedCycle}
           />
         );
       case "debts":
@@ -1437,15 +1805,12 @@ export default function App() {
         />
       </div>
 
-      {/* Cycle Completed Modal — shown above everything */}
+      {/* Cycle Review Modal — shown above everything including bottom nav */}
       {pendingCycleCompletion && (
         <CycleCompletedModal
           cycle={pendingCycleCompletion}
+          auraScore={auraScore}
           onStartNewCycle={handleStartNewCycle}
-          onViewHistory={() => {
-            setPendingCycleCompletion(null);
-            setCurrentScreen("analytics");
-          }}
           lang={language}
         />
       )}
