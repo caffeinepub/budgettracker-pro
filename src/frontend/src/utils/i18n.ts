@@ -219,6 +219,9 @@ export const translations = {
     debts_net_positive: "You are owed",
     debts_net_negative: "You owe",
     debts_net_zero: "All balanced",
+    // View All / Show Less
+    view_all: "View All",
+    show_less: "Show Less",
   },
   ar: {
     onboarding_welcome: "أهلاً بك في WIZ",
@@ -436,6 +439,9 @@ export const translations = {
     debts_net_positive: "يُدان لك",
     debts_net_negative: "تدين بـ",
     debts_net_zero: "الحساب متوازن",
+    // View All / Show Less
+    view_all: "عرض الكل",
+    show_less: "عرض أقل",
   },
 } as const;
 

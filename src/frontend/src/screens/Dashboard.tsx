@@ -1,7 +1,9 @@
 import { Input } from "@/components/ui/input";
 import {
   CalendarClock,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   Crown,
   Download,
   LogOut,
@@ -862,6 +864,7 @@ export default function Dashboard({
 }: DashboardProps) {
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
+  const [showAllExpenses, setShowAllExpenses] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
   const [editTarget, setEditTarget] = useState<Expense | null>(null);
   const [editAmount, setEditAmount] = useState("");
@@ -910,14 +913,16 @@ export default function Dashboard({
   );
   const dueThisWeekTotal = dueThisWeek.reduce((s, e) => s + e.amount, 0);
 
-  const filteredExpenses =
-    search.trim() === ""
-      ? expenses.slice(0, 5)
-      : expenses.filter(
-          (exp) =>
-            exp.category.toLowerCase().includes(search.toLowerCase()) ||
-            exp.notes?.toLowerCase().includes(search.toLowerCase()),
-        );
+  const isSearchActive = search.trim() !== "";
+  const filteredExpenses = isSearchActive
+    ? expenses.filter(
+        (exp) =>
+          exp.category.toLowerCase().includes(search.toLowerCase()) ||
+          exp.notes?.toLowerCase().includes(search.toLowerCase()),
+      )
+    : expenses.slice(0, showAllExpenses ? expenses.length : 5);
+
+  const hasMore = !isSearchActive && expenses.length > 5;
 
   const avatarSrc = localStorage.getItem("wiz_user_avatar");
   const displayName = currentUser ?? "Chief";
@@ -1289,6 +1294,7 @@ export default function Dashboard({
         ) : (
           <ul
             className="flex flex-col gap-2"
+            style={{ transition: "all 0.3s ease" }}
             data-ocid="dashboard.expenses.list"
           >
             {filteredExpenses.map((exp, i) => (
@@ -1367,6 +1373,50 @@ export default function Dashboard({
               </li>
             ))}
           </ul>
+        )}
+
+        {/* View All / Show Less toggle */}
+        {hasMore && (
+          <button
+            type="button"
+            data-ocid="dashboard.expenses.view_all_button"
+            onClick={() => setShowAllExpenses((v) => !v)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 5,
+              width: "100%",
+              marginTop: 12,
+              padding: "8px 0",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              color: "#10b981",
+              fontFamily: "inherit",
+              borderRadius: 10,
+              transition: "opacity 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = "0.75";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = "1";
+            }}
+          >
+            {showAllExpenses ? (
+              <>
+                {t("show_less")} <ChevronUp size={14} />
+              </>
+            ) : (
+              <>
+                {t("view_all")} · {expenses.length} <ChevronDown size={14} />
+              </>
+            )}
+          </button>
         )}
       </div>
 
